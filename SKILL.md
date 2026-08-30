@@ -96,6 +96,30 @@ building anything on top of it.** Residue at drop boundaries is invisible in
 the raw transcript and obvious in the cut one. This check has caught a real
 defect on every video so far.
 
+### The pipeline, in order
+
+Each step has a gate. The gates are not optional — every one of them has caught
+a shipped-quality defect at least once.
+
+1. `ffprobe` the source. **Note the fps** — it decides every composition.
+2. Transcribe (cached). Build a phrase-level view of the **raw** transcript to
+   find false starts, duplicates and silences.
+3. Write the cut as DROPS → `edl_<name>.json`.
+   **Gate:** run the boundary diagnostic (which words does each range edge cut
+   through?) and read the transcript **of the cut**.
+4. Extract + concat → `base.mp4`.
+   **Gate:** `ffprobe base.mp4` and confirm the duration matches the cut. Only
+   now is it safe to pull a framing frame for the overlay briefs.
+5. Choose cutaway windows against the cut's output timeline.
+   **Gate:** the inside-vs-after word check (see the payoff-anchoring section).
+6. Build the graphics with parallel sub-agents into versioned dirs
+   (`src/slots/vN/` → `out_vN/`), never overwriting a previous video's renders.
+7. Measure segment drift, then write the final EDL with corrected overlay times.
+   **Gate:** re-derived times must match the stored ones to ~0.000s.
+8. Composite → loudnorm → **measure true peak** → limiter if needed.
+9. Self-eval contact sheets on the rendered output. Fix, re-composite, repeat.
+10. Append to `project.md`; fold any correction into this skill and push.
+
 ## Brand
 
 Every color, font, glass panel, and icon comes from the `brand-pba-code` skill
@@ -174,7 +198,7 @@ uses b-roll than to a slide deck with a narrator.
 So: many short cutaways beat few long ones, even if the "few long ones" target
 the objectively most technical parts.
 
-**Calibration from three shipped videos:** 18 cutaways each, landing at
+**Calibration from four shipped videos:** 18 cutaways each, landing at
 9–13.5% of total runtime, which works out to roughly **one per minute**. The
 per-minute cadence is the number that matters; the percentage follows from it.
 One cutaway per video may run ~8s if it's a genuine recap or table that can't
@@ -266,6 +290,16 @@ asked for one.
 it comes up again, the working expression and the two hard-won facts about it
 (why 5% reads as *janky* rather than subtle, and why changing it forces a full
 re-extraction) are in the cutting-and-render notes.
+
+## Delivery: loudness
+
+Two-pass loudnorm to −14 LUFS, video stream-copied. **Then measure the finished
+file.** loudnorm's dynamic mode is imprecise on true peak even with
+`linear=true` — outputs have landed anywhere from −0.15 to −0.62 dBTP, and
+twice at **+0.07 dBTP**, i.e. clipping. If TP comes out above about −0.2, run a
+limiter over it (video stream-copied, so it's quick) and re-measure. Sources
+have arrived both clipping (+2.16 dBTP) and 16 dB too quiet, so this step
+always earns its keep. Exact commands are in the cutting-and-render notes.
 
 ## Before you show the user anything
 
