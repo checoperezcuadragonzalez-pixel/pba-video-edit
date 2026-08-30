@@ -189,6 +189,31 @@ default.
 opaque full-frame clips. This is the single most important structural decision
 in this skill, and the technical notes explain why in detail.
 
+### Anchor each window to the payoff word, not the start of the phrase
+
+The most common way to get this wrong — and it looks like a sync bug even when
+the timing math is perfect. Pick the window by asking **"when does he SAY the
+thing this graphic DRAWS?"**, then place the window so the graphic's payoff
+lands on those words.
+
+On one video, ten of eighteen cutaways were anchored to the start of the
+relevant sentence. Every timestamp was correct to within 0.04s and the drift
+was properly corrected — and the user still reported the animations as
+*desfasadas*, because the graphics were consistently running **3–10 seconds
+ahead of the narration**. A card listing a five-step sequence played while he
+was still setting it up; he named the five steps after the cutaway had already
+returned to camera. A remate reading "tres meses más viejo" appeared on screen
+before he said "viejo".
+
+The check that catches it, run against the cut's output timeline before
+building the EDL: for each window, print the words spoken **inside** it and the
+words in the **7 seconds after**. If the graphic's own copy shows up in the
+"after" column, the window is too early — move it later.
+
+`video-use` states this as the "animation payoff timing" rule (start the reveal
+`reveal_duration` earlier so the landing frame coincides with the payoff word).
+It is easy to skip when you are placing eighteen windows at once. Don't.
+
 ## Camera overlays
 
 For stretches that stay on camera, text/icon/lower-third overlays follow the
