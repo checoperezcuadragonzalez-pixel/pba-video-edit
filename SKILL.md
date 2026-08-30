@@ -118,13 +118,19 @@ memorizing:
 1. It renders **accented uppercase** (Ñ, Ó, Á) as a detached accent floating
    next to a broken glyph. A mono kicker reading `AÑOS EN LA ESCUELA` shipped
    as `AкOS EN LA ESCUELA`.
-2. Its **zero is slashed**, and at kicker size the slash reads as a **Q**.
-   `PREGUNTA 01` looks like `PREGUNTA Q1` — confirmed by zooming into the
-   rendered frame, not a thumbnail artifact.
+2. Its **zero is slashed**, and at kicker size the slash reads as a **Q** —
+   in *any* position, not just leading. `PREGUNTA 01` looks like
+   `PREGUNTA Q1`; `90 DIAS` looks like `9Q DIAS`. Confirmed by zooming into
+   the rendered frame, not a thumbnail artifact.
 
-So: mono kickers are **unaccented ASCII with no leading zero**. Write
-`PREGUNTA 1`, `BLOQUE 2`, `REGLA 3`. All accented Spanish goes in Inter
+So: mono kickers are **unaccented ASCII with no digits at all**. Write
+`PREGUNTA 1`, `BLOQUE 2`, `NOVENTA DIAS`, `DIA TREINTA` — spell numbers out or
+drop them. Digits are fine in Inter, so `$250`, `$37 al mes` and `Día 1 – 30`
+belong in body copy, never in a mono kicker. All accented Spanish goes in Inter
 sentence case, which renders it correctly.
+
+A first pass at this rule said "no leading zero", which was too narrow and let
+`90 DIAS` through. Tell sub-agents the strict version.
 
 If a specific video has a reason to deviate from the brand (a sponsor's
 palette, a one-off collab), that's a conversation for the propose-strategy
@@ -204,6 +210,14 @@ video has had a different hazard: a bright lamp, a mic boom, a silver laptop
 that swallows white text, a red Coca-Cola machine that fights the
 single-accent rule, a blown-out softbox. Grab a frame, identify the face box
 and the hazards, and hand the sub-agent explicit safe-area coordinates.
+
+**Grab that frame only after extraction finishes.** `base.mp4` is overwritten
+per video, so sampling it while the new extraction is still running hands you
+the *previous* video's frame — and you'll brief the overlay agent with hazards
+that don't exist and miss the ones that do. It happened once and only went
+unnoticed because both setups happened to have a dark left side. Check
+`ffprobe`'s duration on `base.mp4` against the cut's expected length before
+trusting any frame you pull from it.
 
 ## Subtitles
 

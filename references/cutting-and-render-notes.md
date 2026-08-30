@@ -188,10 +188,19 @@ fast and lossless on the picture. Measure, then apply with the measured values.
 
 Worth doing even when it seems unnecessary: one source measured **+2.16 dBTP**
 — it was clipping — and another sat at −29.58 LUFS, nearly 16 dB quiet.
-Delivered results land around −14.2 to −14.5 LUFS. True peak typically comes
-out between −0.15 and −0.62 dBTP rather than exactly −1; loudnorm's dynamic
-mode isn't precise on TP. That's below zero so it doesn't clip, and YouTube
-renormalizes anyway.
+Delivered results land around −14.2 to −14.5 LUFS. **True peak is the part to
+check, not assume.** loudnorm's dynamic mode is imprecise on TP even with
+`linear=true`: outputs have come out anywhere from −0.15 to −0.62 dBTP, and
+once at **+0.07 dBTP** — above zero, i.e. clipping on playback. Always measure
+the finished file, and if TP lands above about −0.2, run a limiter over it
+(video stream-copied, so it's quick):
+
+```bash
+ffmpeg -i in.mp4 -map 0:v -map 0:a -c:v copy   -af "alimiter=limit=0.891:attack=5:release=50:level=disabled"   -c:a aac -b:a 192k -ar 48000 out.mp4
+```
+
+`limit=0.891` is −1 dBFS on sample peak; inter-sample true peak lands a little
+above that, around −0.4 dBTP, which is safe.
 
 Parsing pass 1: write ffmpeg's stderr to a **file** and read it back, rather
 than `capture_output=True` — the in-memory capture came back empty once and a

@@ -177,12 +177,15 @@ Each brief must be self-contained. Include, every time:
    agents share this project".
 3. The entry-file shape, inline.
 4. Resolution, **fps (matched to the source, and don't copy it from a
-   sibling)**, exact `durationInFrames`.
+   sibling or from `tokens.ts`)**, exact `durationInFrames`. The vendored
+   `tokens.ts` still exports a stale `FPS` constant from an older video —
+   every slot must declare its own.
 5. Opaque-vs-transparent, and the exact render command including
    `--image-format=png` for alpha.
 6. Import depth (`../` vs `../../`).
-7. Brand rules, including both Perezcuadra traps (accented uppercase, slashed
-   zero — no leading zeros in kickers).
+7. Brand rules, including both Perezcuadra traps (accented uppercase renders
+   broken; the slashed zero reads as a Q **in any position** — so mono kickers
+   carry no digits at all, spell numbers out).
 8. The fast-entrance criterion, phrased as "the headline, not the kicker".
 9. Narration text that plays underneath, with timings, so reveals can be
    synced.
