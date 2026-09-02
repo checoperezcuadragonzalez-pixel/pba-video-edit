@@ -91,6 +91,35 @@ Footage has arrived in two shapes, and they need different first steps:
   See the cutting reference for the DROPS-based method and the word-boundary
   traps.
 
+**Check whether the video is pure talking head before planning any of this.**
+One video turned out to be a hybrid: 11 minutes to camera, then **4¼ minutes
+of screen-share demo** (installing the tool, pasting a prompt, showing the
+result) with a webcam PIP in the corner, then back to camera. Nothing in the
+transcript announces the switch — you find it by sampling frames across the
+runtime, which is worth doing on every raw file for exactly this reason.
+
+It changes the plan in three ways:
+
+1. **The demo section gets no cutaways.** The screen already *is* the visual
+   support; a graphic on top hides the thing the viewer needs to see. Cut only
+   dead time there — and expect plenty, since that is where the presenter hunts
+   for a folder or waits for the tool to respond.
+2. **The cutaway budget is computed over the camera runtime, not the total.**
+   Otherwise the one-per-minute cadence silently doubles in the talking-head
+   half.
+3. **Watch for stretches that are visually flat but content-dense.** In that
+   same video the presenter read three six-step prompts aloud *to camera* with
+   nothing on screen — two and a half minutes of spoken lists. That is the
+   strongest argument for graphics in the whole video, and it's invisible
+   unless you cross-check the transcript against the framing.
+
+That last case is a legitimate reason to exceed the usual density. Nine prompt
+cards plus three service headers ran that section at roughly one card per
+12 seconds, pushing overall cutaway coverage to **14.4%**, above the 9–13.5%
+band from the pure talking-head videos. That's fine when the extra density is
+confined to a reference section the viewer wants to pause on — but surface it
+during propose-strategy instead of discovering it at the end.
+
 Whichever shape it arrives in, **read the transcript of the cut before
 building anything on top of it.** Residue at drop boundaries is invisible in
 the raw transcript and obvious in the cut one. This check has caught a real

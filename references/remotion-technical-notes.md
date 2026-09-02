@@ -122,6 +122,29 @@ opaque by ~0.35s.** Concretely, on the rule/block cards that means kicker
 this explicitly in every sub-agent brief, and make the agent verify it by
 extracting a real still and *looking at it*, not by trusting ffprobe.
 
+### The ghost-opacity variant: "visible" depends on what the element is
+
+Cards that build a list use a "ghost" pattern — every item present from frame 0
+at low opacity, each *landing* to full on its own beat. That's the right shape,
+because the hard cut can then never hit an empty frame. But the floor opacity
+has to be chosen per element type, and the brief's usual phrasing ("present at
+~0.22") does not port between them:
+
+- **Real text** at 0.22 reads fine. Two cards — four labels, and three numbered
+  sentences — both passed at that floor.
+- **Abstract shapes** at the same number do not. A card representing eight
+  rewritten drafts used thin 9px gray bars already coloured
+  `rgba(255,255,255,0.42)`; times a 0.24 ghost floor that is an **effective
+  alpha of 0.10**, and the finished frame read as black in the boundary sheet.
+  `0.42 × 0.72 = 0.30` fixed it.
+
+So specify the **effective** alpha (floor × the element's own colour alpha),
+not just the floor, and aim for ~0.30 when the placeholder carries no readable
+text. The sub-agent will report "the block is visible as a shape at 0.35s" and
+be telling the truth either way — only the boundary contact sheet on the
+finished render settles it. This was the one defect that survived to the final
+render on this video, which is a good reminder that the sheet earns its place.
+
 Also universal: hold the final composed frame completely still for the last
 ~1s, and **do not fade to black at the end** — the hard cut back to camera
 does that work, and a fade just reads as a dip.

@@ -48,13 +48,59 @@ Move the drop later to include it and you swallow 6s of silence instead.
 Fix: compute a clamped effective end used **only** for boundary math.
 
 ```python
-MAX_WORD = 1.0
+MAX_WORD = 2.5
 for w in words:
     w["wend"] = min(w["end"], w["start"] + MAX_WORD)
 ```
 
-No real word lasts longer than a second, so this is safe and it makes both
-failure modes go away.
+**Pick this number per video — do not hardcode 1.0.** An earlier version of
+this note said "no real word lasts longer than a second", and that was wrong.
+In a video with a screen-share demo the presenter elongates words while he
+types: `'vender'` genuinely ran **1.86s** of speech. With `MAX_WORD = 1.0` the
+boundary math clamped `wend` to `start + 1.0`, the segment ended there, and the
+word shipped decapitated — the exact failure the clamp exists to prevent, just
+caused by the clamp itself.
+
+The two cases are easy to tell apart because they differ by an order of
+magnitude: elongated speech tops out around 2s, while Scribe's silence padding
+shows up as 3s+ outliers. So dump the distribution first and set the tope above
+the longest genuine word:
+
+```python
+long = [(w["end"] - w["start"], w["text"]) for w in words
+        if w["end"] - w["start"] > 1.0]
+for d, t in sorted(long, reverse=True)[:20]:
+    print(f"{d:6.2f}  {t!r}")
+```
+
+If the top of the list is ~1.9s and there are no 3s+ entries, the transcript has
+no Scribe padding artefacts at all and a generous `MAX_WORD` costs nothing.
+
+### Trap 1b: Scribe emits three decimals, and rounding them decapitates words
+
+Related and nastier, because it looks like the code is right. Scribe returns
+two decimals for most words but **three for some** (`'primero.'` ends at
+`849.612`, `'mierda.'` at `967.772`). If your inspection helper prints rounded
+values and you paste one straight into a `DROPS` boundary, the drop starts
+**2ms before** the word actually ends, the word fails the `wend <= b` test, and
+the phrase ships cut short — `"Vamos a ponerle Stripe cliente"` instead of
+`"...cliente primero."`, and `"...nuestra reputación a la"` with the last word
+gone.
+
+Two fixes, apply both:
+
+```python
+EPS = 0.01                       # covers 2-decimal rounding (max error 0.005)
+inside = [w for w in words
+          if w["start"] >= a - EPS and w["wend"] <= b + EPS]
+```
+
+and make the peek/inspect helper print `{t:.3f}`, never `{t:.2f}`.
+
+This one is invisible in the raw transcript and invisible in the boundary
+diagnostic below (the boundary doesn't cut *through* a word — the word is
+simply excluded). **Only reading the transcript of the cut catches it**, which
+is why that step is non-negotiable.
 
 ### Trap 2: padding bites the neighbouring word
 
@@ -199,13 +245,63 @@ the finished file, and if TP lands above about −0.2, run a limiter over it
 ffmpeg -i in.mp4 -map 0:v -map 0:a -c:v copy   -af "alimiter=limit=0.891:attack=5:release=50:level=disabled"   -c:a aac -b:a 192k -ar 48000 out.mp4
 ```
 
-`limit=0.891` is −1 dBFS on sample peak; inter-sample true peak lands a little
-above that, around −0.4 dBTP, which is safe.
+**`limit=0.891` is often not enough — use `0.794`.** 0.891 is −1 dBFS on *sample*
+peak, and an earlier version of this note claimed inter-sample true peak then
+lands around −0.4 dBTP. On one video it didn't: an output measuring −0.18 dBTP
+came back at **−0.16 dBTP** after the limiter, barely moved. The limiter caps
+sample peak, and the AAC re-encode that follows reintroduces inter-sample peaks
+above it, so a 1 dB ceiling leaves nothing to absorb them.
+
+`limit=0.794` (−2 dBFS) landed the same file at **−1.3 dBTP** and cost only
+0.2 LUFS (−14.45 → −14.67, still in spec). Start there.
+
+Two process notes: apply the limiter to the **loudnorm output**, not to an
+already-limited file, or you double-limit; and keep that intermediate around
+(`final_*_nolimit.mp4`) so you can retry at a different ceiling without redoing
+the composite. Worth wiring the measure-and-limit decision into the compose
+script rather than doing it by hand — it runs on every delivery anyway.
 
 Parsing pass 1: write ffmpeg's stderr to a **file** and read it back, rather
 than `capture_output=True` — the in-memory capture came back empty once and a
 file is easy to inspect when parsing fails. Add `-nostats` to keep the progress
 spam out.
+
+## Don't point `render.py -o` at `base.mp4`
+
+Extraction and concat are the expensive part and they're all you want when you
+are only building the base. But `render.py` always runs its composite step
+afterwards, and with no overlays that step degenerates into
+`ffmpeg -i base.mp4 -c copy base.mp4` — same file as input and output — which
+fails and makes the whole run exit 1.
+
+The extraction and the concat have already succeeded at that point, so the base
+is fine and you should not re-run anything. Verify it directly instead of
+trusting the exit code: count the files in `clips_graded/` and `ffprobe` the
+base's duration against the cut's `total_duration_s` (expect it a little longer
+— that's the frame-rounding drift). Writing to a different name avoids the
+error entirely.
+
+## The composite is slow, and the progress log lies about how slow
+
+A 21-segment / 33-overlay composite of an 18-minute 1080p60 video runs about
+**48 fps, so ~23 minutes**. Budget for it.
+
+Do not estimate progress from `tail -c` on the log. ffmpeg writes progress with
+carriage returns and the tail you read back is often a partially flushed chunk,
+so two samples taken minutes apart can appear to show almost no movement — it
+looks like the render has stalled when it's running fine. Grep the **whole**
+log for the last `frame=` instead, and sample twice with a known sleep between:
+
+```bash
+F1=$(grep -aoE "frame= *[0-9]+" log | tail -1 | tr -d ' ' | cut -d= -f2)
+sleep 90
+F2=$(grep -aoE "frame= *[0-9]+" log | tail -1 | tr -d ' ' | cut -d= -f2)
+echo "$(( (F2-F1)/90 )) fps"
+```
+
+ffmpeg's own `speed=` field is also misleading here: it's averaged from process
+start and includes the long setup where 34 inputs are opened, so it reads low
+early on and never catches up.
 
 ## Verify what actually happened, not the exit code
 
