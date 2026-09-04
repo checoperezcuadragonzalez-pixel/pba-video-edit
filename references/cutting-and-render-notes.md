@@ -102,6 +102,21 @@ diagnostic below (the boundary doesn't cut *through* a word — the word is
 simply excluded). **Only reading the transcript of the cut catches it**, which
 is why that step is non-negotiable.
 
+### Trap 1c: a drop must end *before* the first word you want to keep
+
+The mirror image of 1b, and just as easy to type. Ending a drop exactly at the
+start timestamp of the first word you want back keeps that word — but throws
+away the one before it, which you probably also wanted.
+
+A drop written to end at `97.30` (where `'prometo'` starts) silently swallowed
+`'te'` at `97.200–97.280`, and the cut read *"...es una lista real. **prometo**
+que al final..."*. The drop should have ended at `97.19`.
+
+Rule: read the peek output for the words on **both** sides of the boundary and
+place it in the gap between them, not on top of either one. The containment test
+(`start >= a - EPS`) uses the word's start, so a boundary sitting mid-gap is
+unambiguous while one sitting on a start timestamp is a coin flip.
+
 ### Trap 2: padding bites the neighbouring word
 
 `PAD_OUT = 0.08` pushes the segment end forward, and if the next word (from the
@@ -412,6 +427,40 @@ Parsing pass 1: write ffmpeg's stderr to a **file** and read it back, rather
 than `capture_output=True` — the in-memory capture came back empty once and a
 file is easy to inspect when parsing fails. Add `-nostats` to keep the progress
 spam out.
+
+## `base.mp4` has shipped truncated — measure it, never assume
+
+On one video `render.py` extracted all 22 segments correctly (they summed to
+1055.47s in `clips_graded/`), printed `concat → base.mp4`, produced its own
+downstream output, and **exited 0** — while `base.mp4` itself was
+**550.8s, barely half the cut**. Nothing in the log said so.
+
+The gate in the pipeline caught it, which is exactly why it's a gate:
+
+```bash
+ffprobe -v error -show_entries format=duration -of csv=p=0 base.mp4
+# compare against edl.json's total_duration_s (expect it a few tenths LONGER —
+# that's the frame-rounding drift, never shorter)
+```
+
+Recovery is cheap because the expensive part — extraction — is already done.
+Rebuild the concat by hand from `clips_graded/` and re-probe:
+
+```bash
+python - <<'PY'
+import io, json
+edl = json.load(io.open('edl.json', encoding='utf-8'))
+stem = list(edl['sources'])[0]
+with io.open('concat.txt', 'w', encoding='utf-8') as f:
+    for i in range(len(edl['ranges'])):
+        f.write(f"file 'clips_graded/seg_{i:02d}_{stem}.mp4'\n")
+PY
+ffmpeg -y -v error -f concat -safe 0 -i concat.txt -c copy -movflags +faststart base.mp4
+```
+
+**Rebuild the drift table after this**, since `build_edl_*_final.py` measures
+`clips_graded/` rather than the base — in this case it was unaffected, but any
+re-extraction invalidates it.
 
 ## Don't point `render.py -o` at `base.mp4`
 

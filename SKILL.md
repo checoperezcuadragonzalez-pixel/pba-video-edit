@@ -176,8 +176,27 @@ a shipped-quality defect at least once.
 ## Brand
 
 Every color, font, glass panel, and icon comes from the `brand-pba-code` skill
-(PBA Liquid Glass v4) — invoke it to pull the actual token values rather than
-guessing, since the design system does evolve. The translation to video:
+(Liquid Glass v4.1) — invoke it to pull the actual token values rather than
+guessing, since the design system does evolve.
+
+> **The academy is called `Architect Academy`.** It was renamed from *Project
+> Boy Academy / PBA* in September 2026. **Never put "Project Boy Academy" or
+> "PBA" on screen in a new public-facing piece** — not in a CTA card, not in a
+> lower-third — even when the recorded audio still says the old name, which it
+> does on anything shot before the rename. Put the current name on the card and
+> let the audio be what it is; that mismatch is the intended trade.
+>
+> This is only about *display text*. The CSS custom properties keep their
+> `--pba-*` prefix and the classes keep `.pba-*` — do **not** rename those, and
+> the vendored Remotion kit directory (`animations/pba_kit/`) stays as it is.
+> The skill's own name and this repo also keep the old slug.
+>
+> The design system does evolve, so re-invoke `brand-pba-code` at the start of
+> every video instead of trusting this paragraph. It changed under a delivered
+> video once: the previous session shipped a CTA card reading "Project Boy
+> Academy" hours before the rename surfaced.
+
+The translation to video:
 
 - Black is the stage (`#050505` / `#0A0A0A`), always. Amarillo evidencia
   (`#FACC15`) is the one accent. Liquid gold (the gradient) is reserved for
@@ -312,6 +331,19 @@ video has had a different hazard: a bright lamp, a mic boom, a silver laptop
 that swallows white text, a red Coca-Cola machine that fights the
 single-accent rule, a blown-out softbox. Grab a frame, identify the face box
 and the hazards, and hand the sub-agent explicit safe-area coordinates.
+
+**Sample the frame at each overlay's own timestamp, not one frame for the
+whole video — the presenter's hands move.** Two videos shot in the same room on
+the same day wanted opposite halves of the screen. In the morning take the
+bottom-left band was clear and all three overlays went there; in the evening
+take he gesticulates constantly, and at both lower-third moments his hand
+occupied roughly `x 120–460, y 760–1080` — precisely the safe area from the
+earlier video. Everything moved to `x 1290–1870, y 780–1020` instead.
+
+So the hazard list is per-overlay: pull a still at each window's start, and
+give each sub-agent the coordinates for *its* moment. A single "the framing is
+the same as last time" is how you brief an agent to draw a card underneath a
+hand.
 
 **Grab that frame only after extraction finishes.** `base.mp4` is overwritten
 per video, so sampling it while the new extraction is still running hands you

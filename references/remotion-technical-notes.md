@@ -191,6 +191,24 @@ What doesn't work: briefing three agents independently from the same
 description. They diverge in font size and rhythm in ways that are obvious
 once the cards appear minutes apart.
 
+### Two families, when the video has a structural split
+
+A listicle of ten that divides into "six you buy" and "four you can't" wants
+the split to be *visible*, not just spoken. Build it as two families rather
+than one: reference A, then reference B derived from A with **exactly one**
+deliberate difference, then copy each family from its own reference.
+
+One difference is the whole trick. On the video that did this, family B's
+kicker gained a small amarillo dot with a glow and nothing else changed —
+same sizes, same rhythm, same landing frames. The viewer feels the block
+change without being able to name it. Give the B agent A's path and tell it to
+read A first, pick one marker, and hold everything else identical; listing two
+or three candidate markers and saying "choose one, not both" works better than
+prescribing the marker yourself.
+
+Order matters: A must exist before B starts, and both must exist before their
+copies. That's three waves, not two.
+
 ## Sub-agent brief checklist
 
 Each brief must be self-contained. Include, every time:
