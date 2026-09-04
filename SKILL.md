@@ -125,6 +125,30 @@ building anything on top of it.** Residue at drop boundaries is invisible in
 the raw transcript and obvious in the cut one. This check has caught a real
 defect on every video so far.
 
+### When the ask is "just cut it"
+
+Sometimes the user wants no graphics at all — *"sin motion graphics, solo
+córtalo y ya"*. Take it literally: no cutaways, no alpha overlays, no burned
+subtitles, no grade, no zoom. Steps 5–7 of the pipeline below drop out entirely
+and the job is transcribe → DROPS → extract → concat → loudnorm.
+
+Confirmation is still required, but the useful question is no longer *what* to
+build — it's **how hard to cut**. Offer two levels and let them pick:
+
+- **Limpieza** — only mistakes: false starts, duplicated phrases, stutters with
+  enough room to cut cleanly, and dead silences ≥1s trimmed to ~0.3s. Breathing
+  pauses of 0.5–0.8s stay. On a 9:36 talking head this was 18 drops, −26s (4.5%).
+- **Agresivo** — additionally squeeze every pause >0.6s to ~0.35s. Roughly −70s
+  on that same video, and it costs the punchlines their air.
+
+Default to **limpieza** and say why. The material is usually tighter than it
+feels, and on a face-to-camera video the pauses *are* the delivery.
+
+Two details change, both in the cutting notes: the padding logic has to be
+inverted so hand-placed pause lengths actually survive to the output, and the
+self-eval swaps its three contact sheets for a join-level pop check plus a
+re-transcribed reading of every seam.
+
 ### The pipeline, in order
 
 Each step has a gate. The gates are not optional — every one of them has caught

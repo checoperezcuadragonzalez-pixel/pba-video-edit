@@ -131,6 +131,81 @@ for i, r in enumerate(edl["ranges"]):
 The only acceptable hits are the `MAX_WORD`-clamped ones. Anything else is a
 clipped word — fix the drop boundary.
 
+## Cuts-only edits: the padding re-snap flattens every pause
+
+The snap-and-pad logic above computes each range edge as
+`first_word.start - PAD_IN` / `last_word.wend + PAD_OUT`, clamped to the
+neighbours. The consequence is easy to miss: **the drop boundaries you wrote by
+hand never reach the output.** They decide *which words fall out* and nothing
+else. Every trimmed pause, wherever you put the cut, collapses to
+`PAD_IN + PAD_OUT` = **0.13s** of silence.
+
+On a video full of cutaways that is invisible — the graphics carry the rhythm.
+On a **cuts-only or light-cleanup pass it is the whole edit**, and it reads as
+breathless. It was caught on the 2026-09-03 video by printing the surviving air
+at each join: a drop written to leave 0.62s of hold after the punchline *"¿qué
+puta estoy haciendo?"* was delivering 0.13s, cutting the line off at the knees.
+
+The fix is to invert the roles. Every drop boundary is already hand-placed
+inside a silence, so the window `[a, b]` **is** the editorial intent — use it
+directly, and demote padding from a transformation to a *gate*:
+
+```python
+s, e = max(0.0, a), min(total, b)      # el borde de la drop ES el borde del rango
+```
+
+then assert clearance instead of manufacturing it:
+
+```python
+PAD_FLOOR = 0.030          # piso de Hard Rule 7
+# para cada borde: no parte palabra, y >= PAD_FLOOR a la palabra que se queda
+```
+
+and print what actually survives, which is the number you were reasoning about
+all along:
+
+```
+join 03   0.80s   'haciendo?"' | 'Recuerdo'      <- el remate respira
+join 11   0.17s   'cliente,'   | '250'           <- quitar un tartamudeo, pegado a proposito
+join 14   0.08s   'paso'       | 'para'
+```
+
+Two joins per video legitimately want 0.07–0.17s (removing a stutter should be
+seamless) and the rest want 0.25–0.50s. If that table reads 0.13 all the way
+down, the re-snap is still in charge.
+
+Exempt the first range's start and the last range's end from the clearance gate
+— those are file edges, not cuts, and they always report 0ms.
+
+## The `< 0.35s` minimum-duration filter deletes words silently
+
+`if e - s < 0.35: continue` exists to kill slivers, but combined with the
+padding above it quietly removes **real content**. On the 2026-09-03 video, a
+deliberately-kept `"Sí,"` sat between two trimmed pauses; padding gave it a
+0.29s segment, the filter dropped it, and the word vanished from the cut with
+no warning anywhere in the output.
+
+It happened to be the right editorial call, which is exactly why it's
+dangerous — a silent deletion that looks like good taste. Either log every
+range the filter discards, or (better) author such moments as an explicit drop
+so the intent is in the DROPS list with a reason attached.
+
+## Removing a stutter can leave a duplicated word
+
+`"una desconexión con la p-- con mi público"` → drop `"la p--"` and you ship
+`"desconexión con con mi público"`. The stutter was a *restart*, so the word
+before it repeats after it.
+
+Check the words on **both sides** of a stutter drop, not just the stutter. And
+before extending the drop to swallow the duplicate, check the clearance: here
+the gaps around the first `"con"` were 24–40ms, under the 30ms floor, so the
+honest call was to leave the whole stumble in. Same reasoning retires the
+`"n-no ... que-- ... yo--"` cluster in that video: when every clean cut point is
+under the padding floor, the cut is more audible than the stutter.
+
+This is invisible in the raw transcript — it only appears when you read the
+transcript of the cut.
+
 ## Always read the transcript OF THE CUT
 
 Build a phrase-level transcript on the **output timeline**
@@ -163,6 +238,12 @@ Without it, two failures, both from Python defaulting to cp1252:
 
 Belt and braces: keep an ASCII-only source key in the EDL (`src_v2` →
 `C:\...\src_v2.mkv`) and the mojibake path disappears entirely.
+
+`transcribe.py` has a related trap: it resolves its cache directory **relative
+to the input path**, not to the edit directory. Calling it from `Videos/` with
+`edit/final.mp4` writes to `edit/edit/transcripts/`, and the next tool that
+looks in `edit/transcripts/` fails with `FileNotFoundError`. Pass paths whose
+parent is already the edit directory, or move the JSON afterwards.
 
 ## render.py cannot burn subtitles on Windows
 
@@ -202,6 +283,72 @@ Note: SRTs written by `render.py` on Windows end up with `\r\r\n` line endings
 (text mode translating an already-`\r\n` string). Reading them with universal
 newlines inserts a blank line between every row and breaks any block-based
 parser. Parse by lines, stripping `\r`.
+
+## Write the sidecar SRT yourself — don't use `--build-subtitles`
+
+Subtitles ship as a `.srt` alongside the video (see the skill's Subtitles
+section), and `render.py --build-subtitles` is the wrong tool for it twice over:
+
+1. **It writes with the platform's default encoding.** On Windows that's cp1252,
+   so `"Sí"` lands as the bytes `53 CD` and every accent, `ñ`, `¿` and `¡` in the
+   file is corrupted. The file still *opens*, which is how it gets shipped.
+   Write with `encoding="utf-8-sig"` — the BOM makes YouTube and VLC detect it
+   unambiguously.
+2. **It emits the `bold-overlay` style**: 2-word UPPERCASE chunks, designed to be
+   burned into vertical video. As a selectable YouTube track it's unreadable —
+   no punctuation to follow and the eye resetting every ~200ms.
+
+A sidecar track wants sentence case with real punctuation, breaking on sentence
+end / a pause ≥0.45s / ~84 chars / 14 words / 6s, wrapped onto two lines at the
+space nearest the middle. That lands around 198 cues and ~48 chars/cue for a
+9-minute talking head, versus 961 cues from the overlay style.
+
+Two things to verify after writing, both of which have shipped broken:
+
+- **Millisecond truncation.** `f"{int(s):06.3f}"` casts to int *before*
+  formatting, so every timestamp comes out squared to the whole second
+  (`00:00:01,000`). It looks plausible at a glance and desyncs up to half a
+  second per cue. Assert that most cues have non-zero milliseconds.
+- **Overlaps.** Clamp each cue's end to `next_start - 0.02` after enforcing any
+  minimum duration, then assert zero overlaps and zero non-positive durations.
+
+## Self-eval for a cuts-only video
+
+The three contact sheets in the main skill assume cutaways and alpha overlays.
+With neither, only the boundary sheet has anything to say — and on a locked-off
+talking head even that mostly shows expected jump cuts. Two checks replace them:
+
+**Audio pops at the joins.** The 30ms fades are applied per segment *before* the
+concat, so a failure shows up as a sample-to-sample discontinuity at the exact
+seam. Decode a 0.5s PCM window around each join and compare the largest step in
+the middle 3ms against the 99.9th percentile of the rest of the window:
+
+```python
+d = np.abs(np.diff(pcm_window))
+ratio = d[mid-half:mid+half].max() / np.percentile(near, 99.9)   # pop si > 3
+```
+
+Healthy joins land at ratio 0.00–0.10 — the seam is *quieter* than the speech
+around it, which is exactly what the fades should produce.
+
+**Do not measure this with `astats`.** Its output goes to loglevel `info`, so
+with `-v error` it prints nothing, the parse yields `nan`, and every comparison
+against `nan` is `False` — the check reports a confident **"ok" on all joins
+without having measured anything.** A verification that cannot fail is worse
+than no verification.
+
+**What the words actually are at each join.** Re-transcribe the render and print
+its words on both sides of every join. Read the *sequence*, and expect two
+artifacts that are not defects:
+
+- Scribe's trailing-silence padding (Trap 1) gives the last word of a phrase an
+  end time past the join, so `"vámonos."`, `"disfrazado."`, `"terminar,"` appear
+  in neither the before nor the after column. They are in the audio.
+- A word-by-word diff of render-transcript vs. EDL-predicted is **too noisy to
+  be a gate**: Scribe non-deterministically renders the same audio as `"250"` or
+  `"doscientos cincuenta"`, `"looks maxim"` or `"lux maxing"`. On one video 30 of
+  30 "divergences" were ASR variance. Before chasing one, compute its distance
+  to the nearest join — anything mid-segment is untouched audio by construction.
 
 ## Grade is baked at extraction — plan around it
 
