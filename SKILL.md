@@ -125,6 +125,30 @@ building anything on top of it.** Residue at drop boundaries is invisible in
 the raw transcript and obvious in the cut one. This check has caught a real
 defect on every video so far.
 
+### Scan for capture failure before planning anything
+
+Sampling frames across the runtime catches the screen-share hybrid described
+above. It also catches something worse, so treat it as a separate question:
+**did the capture actually record?**
+
+One 25:49 OBS file contained **6:53 of "No Signal"** — a black frame with an
+on-screen error, in two blocks totalling **26.7% of the file**. Nothing in the
+transcript announces it, and the audio keeps running the whole time.
+
+Find the exact boundaries by classifying every second, not by eyeballing
+samples — decode at `fps=1` scaled to 96×54 grayscale and threshold the mean
+luma. That turns a vague "something's wrong around minute 17" into
+`983.5–1376.0s`, which is what you need to write a drop.
+
+Then decide whether the dead region has content, and **use words-per-minute to
+decide it**. In that file the No Signal block held 39 words in 6:32 — **6/min
+against the video's 124/min**. That is not lost material, it is the presenter
+talking to someone off-camera with the mic open. It goes in one drop.
+
+Had the density come back near 124/min, the whole job changes: you would have
+audio with no picture and a real conversation to have with the user about it.
+Run the number before assuming either way.
+
 ### When the ask is "just cut it"
 
 Sometimes the user wants no graphics at all — *"sin motion graphics, solo
@@ -143,6 +167,21 @@ build — it's **how hard to cut**. Offer two levels and let them pick:
 
 Default to **limpieza** and say why. The material is usually tighter than it
 feels, and on a face-to-camera video the pauses *are* the delivery.
+
+**Check for retakes before quoting either number.** A raw VSL turned out to
+have five attempts at one line (one of them wrong — the negation dropped out),
+plus four other lines recorded twice, plus a beat split across a capture
+failure. That is take *selection*, not cleanup: for each repeated line you have
+to pick which one ships, and the level question becomes secondary. Say so
+explicitly during propose-strategy and list the repeats you found, because the
+user may want a specific take. On that video the honest scope was three
+options, not two — the third being "cut only what's broken and leave every
+duplicate in for me to choose later."
+
+And re-estimate the runtime after mapping the damage rather than before: an
+early "~17:30" guess on that file became **13:35** once the dead capture,
+the interruption and the retakes were all counted. Give the number once it is
+real, and flag that it moved.
 
 Two details change, both in the cutting notes: the padding logic has to be
 inverted so hand-placed pause lengths actually survive to the output, and the

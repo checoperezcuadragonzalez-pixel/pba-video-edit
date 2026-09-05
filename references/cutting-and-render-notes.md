@@ -146,6 +146,82 @@ for i, r in enumerate(edl["ranges"]):
 The only acceptable hits are the `MAX_WORD`-clamped ones. Anything else is a
 clipped word — fix the drop boundary.
 
+## Place cuts on MEASURED silence, not on Scribe's word edges
+
+Everything above treats Scribe's word boundaries as the coordinate system. That
+holds while the cuts land in wide gaps. It breaks the moment takes are recorded
+back-to-back — and then it breaks *silently*, by telling you a clean cut is
+impossible.
+
+On the 2026-09-04 VSL, the gaps Scribe reported between a botched take and the
+good one were **20–30ms**, under the Hard Rule 7 floor. Measured on the PCM, the
+same gaps were **200–900ms**. The cause is Trap 1 again: Scribe pads the last
+word of a phrase with trailing silence, so the *reported* word runs right up to
+the next one while the *audio* has gone quiet long before.
+
+Concretely: `'superbién.'` is reported to 404.364 and stops sounding at 404.19;
+`'cliente'` is reported to 1476.114 and stops at 1475.79.
+
+So measure. An RMS envelope in 10ms windows, thresholded around −45 dBFS
+(these recordings floor at −60/−80), gives the real valleys:
+
+```python
+rms = np.sqrt((x[:m*n].reshape(m, n) ** 2).mean(axis=1) + 1e-12)
+db  = 20 * np.log10(rms)          # valles = tramos contiguos con db < -45
+```
+
+Put the cut at the **centre** of a valley. On that video 26 of 31 hand-placed
+boundaries landed in real silence first try; the 5 that didn't included one
+about to cut through the middle of a word.
+
+**This retires the clearance gate as the authority.** That gate compares the
+boundary against the *reported* span, so a correctly-placed cut inside the
+padding reads as "splits a word" — 5 false alarms out of 32 edges. Keep it as a
+hint, but the check that decides is a second one that measures PCM on both sides
+of every boundary and requires ≥30ms of continuous silence:
+
+```
+  r01fin    404.290     100ms      90ms   ok
+  r09ini    881.775     150ms     140ms   ok
+```
+
+Make the build-time gate say "confirm with the audio check" rather than
+"REVISAR", or you will spend the session chasing failures that aren't there.
+
+## Phantom residue: Scribe labels room tone as words
+
+A related consequence. After cutting on measured silence, the transcript of the
+cut shows 150ms slivers — `'superbién.'`, `'siempre.'`, `'eh...'`, `'[pausa].'`
+— that look exactly like the drop-boundary residue you are supposed to hunt.
+
+They are not. Measure the peak level of the sliver against normal speech:
+
+```
+  -25.3 dBFS  'superbién.'    <- tono de sala
+  -43.5 dBFS  '[pausa].'      <- tono de sala
+   -8.0 dBFS  'pero eso no es lo más importante'   <- habla de verdad
+```
+
+**25 dB below speech means there is no audio there** — it is a timestamp
+artifact and the file is fine. Real residue sits within a few dB of normal
+speech. Measure before you touch anything; on that video 4 of 5 flagged slivers
+were phantoms and the fifth was a genuine duplicated phrase.
+
+Scribe also emits zero-duration tokens (`'eh...'` at 1390.044–1390.044) that
+land inside silence. Same story.
+
+## Scope the residue check to the joins
+
+"Residue" means *what a boundary left behind*, so proximity to a join is part of
+the definition. A first version of the check flagged every phrase under 0.5s in
+the cut transcript and reported **10 problems where there was 1**: `'Soy Checo.'`,
+`'¿vale?'`, `'Piénsalo.'`, `'Cuídate'` are ordinary speech that the phrase
+splitter isolates because they have a 0.45s pause on both sides.
+
+Filter to phrases whose start or end is within ~0.25s of a join, then measure
+the peak. What survived on that video was 4 phantoms plus one `'fluir'` that
+turned out to be the legitimate last word of its segment.
+
 ## Cuts-only edits: the padding re-snap flattens every pause
 
 The snap-and-pad logic above computes each range edge as
@@ -205,6 +281,24 @@ dangerous — a silent deletion that looks like good taste. Either log every
 range the filter discards, or (better) author such moments as an explicit drop
 so the intent is in the DROPS list with a reason attached.
 
+## Choosing between takes: check BOTH sides of the boundary
+
+When a line was recorded two or three times, the drop that removes the bad take
+has to land clear of the good one on *both* ends. On the 2026-09-04 VSL a
+boundary at 881.775 sat in real silence, passed every gate, and still shipped
+the same sentence twice — *"Pero no es lo más importante. pero eso no es lo más
+importante."* — because it fell in the gap **just before** the second version
+rather than after it.
+
+The fix was to merge two adjacent drops into one that swallows the first
+version entirely. Same family as the duplicated-word case below: removing
+speech creates adjacencies that did not exist in the raw, and only the
+transcript of the cut shows them.
+
+When a video has many retakes, the useful readout is not the drop list but the
+resulting **join table** — what is the last thing said before each cut and the
+first thing after it. Read that end to end before rendering.
+
 ## Removing a stutter can leave a duplicated word
 
 `"una desconexión con la p-- con mi público"` → drop `"la p--"` and you ship
@@ -254,11 +348,13 @@ Without it, two failures, both from Python defaulting to cp1252:
 Belt and braces: keep an ASCII-only source key in the EDL (`src_v2` →
 `C:\...\src_v2.mkv`) and the mojibake path disappears entirely.
 
-`transcribe.py` has a related trap: it resolves its cache directory **relative
-to the input path**, not to the edit directory. Calling it from `Videos/` with
-`edit/final.mp4` writes to `edit/edit/transcripts/`, and the next tool that
-looks in `edit/transcripts/` fails with `FileNotFoundError`. Pass paths whose
-parent is already the edit directory, or move the JSON afterwards.
+`transcribe.py` has a related trap: it caches to
+**`<the video's parent>/edit/transcripts/`**. That is right for a source sitting
+in `Videos/`, and wrong for anything already inside `edit/` — transcribing
+`final.mp4` from the edit directory writes to `edit/edit/transcripts/` and the
+next tool fails with `FileNotFoundError`. Since verifying a render means
+transcribing a file that lives in `edit/`, this bites once per video. Move the
+JSON afterwards, or pass the path from `Videos/`.
 
 ## render.py cannot burn subtitles on Windows
 
