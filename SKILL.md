@@ -140,6 +140,12 @@ samples — decode at `fps=1` scaled to 96×54 grayscale and threshold the mean
 luma. That turns a vague "something's wrong around minute 17" into
 `983.5–1376.0s`, which is what you need to write a drop.
 
+Smooth that classification (a 9-second median) so one dark frame doesn't invent
+a region — **and then run a second, unsmoothed scan later**, because the
+smoothing hides short blacks from OBS scene transitions, which are their own
+failure mode and land *inside* cuts. That check belongs against the EDL, right
+before rendering; see the cutting notes.
+
 Then decide whether the dead region has content, and **use words-per-minute to
 decide it**. In that file the No Signal block held 39 words in 6:32 — **6/min
 against the video's 124/min**. That is not lost material, it is the presenter

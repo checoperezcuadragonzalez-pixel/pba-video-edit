@@ -162,8 +162,15 @@ the next one while the *audio* has gone quiet long before.
 Concretely: `'superbién.'` is reported to 404.364 and stops sounding at 404.19;
 `'cliente'` is reported to 1476.114 and stops at 1475.79.
 
-So measure. An RMS envelope in 10ms windows, thresholded around −45 dBFS
-(these recordings floor at −60/−80), gives the real valleys:
+So measure — but **decode the whole file once**, not a window per boundary.
+Asking ffmpeg for `-ss t -t 1.8` around each edge starts the decode at a
+slightly different point every time, and the same region came back with
+*different* silence runs depending on which window was requested — which makes a
+tight boundary impossible to adjudicate. One decode of the full audio at 16 kHz
+is both consistent and faster than 40 ffmpeg invocations.
+
+An RMS envelope in 10ms windows, thresholded around −45 dBFS (these recordings
+floor at −60/−90), gives the real valleys:
 
 ```python
 rms = np.sqrt((x[:m*n].reshape(m, n) ** 2).mean(axis=1) + 1e-12)
@@ -187,6 +194,39 @@ of every boundary and requires ≥30ms of continuous silence:
 
 Make the build-time gate say "confirm with the audio check" rather than
 "REVISAR", or you will spend the session chasing failures that aren't there.
+
+## Black frames from scene transitions land inside cuts
+
+A failure class that **no other gate can see**. The transcript of the cut reads
+only words; the audio gate reads only the waveform; both pass while the output
+carries seconds of black.
+
+On the 2026-09-05 video an OBS scene transition put the picture at luma 6.6 from
+**502.4 to 504.6**, and the drop started at 504.40 — so the segment ended with
+**2.0s of black**. It surfaced in the boundary contact sheet, which is after
+rendering and depends on someone looking at it.
+
+Worse, the capture-failure scan described in the skill *missed it*: that scan
+smooths with a 9-second median so a single dark frame doesn't create a phantom
+region, and a 2.2s black is exactly what such smoothing erases. The two scans
+answer different questions and you need both:
+
+- **Capture failure** — smoothed, 1 fps, looking for *minutes* of dead signal.
+- **Black inside the cut** — unsmoothed, 5 fps, looking for *fractions of a
+  second* anywhere a range boundary might sit.
+
+Run the second against the EDL before rendering: intersect every black run with
+every kept range, and report the offending output timecode.
+
+**The fix is usually free, thanks to Scribe's padding.** Here `'privilegiada.'`
+was reported as 501.444–504.204 — 2.76 seconds, of which only the first 0.6s is
+speech (the audio drops to −78 dBFS at 502.10). The black starts at frame
+502.317 and the last good frame is 502.250. Moving the cut to **502.26** removed
+the black without losing a syllable. Note that `MAX_WORD = 2.5` did not even
+clamp that word — do not rely on it to bound this.
+
+So when a boundary sits near black: find where speech *actually* stops, find the
+first dark frame at 60 fps, and cut between them.
 
 ## Phantom residue: Scribe labels room tone as words
 
@@ -503,21 +543,43 @@ the finished file, and if TP lands above about −0.2, run a limiter over it
 ffmpeg -i in.mp4 -map 0:v -map 0:a -c:v copy   -af "alimiter=limit=0.891:attack=5:release=50:level=disabled"   -c:a aac -b:a 192k -ar 48000 out.mp4
 ```
 
-**`limit=0.891` is often not enough — use `0.794`.** 0.891 is −1 dBFS on *sample*
-peak, and an earlier version of this note claimed inter-sample true peak then
-lands around −0.4 dBTP. On one video it didn't: an output measuring −0.18 dBTP
-came back at **−0.16 dBTP** after the limiter, barely moved. The limiter caps
-sample peak, and the AAC re-encode that follows reintroduces inter-sample peaks
-above it, so a 1 dB ceiling leaves nothing to absorb them.
+**Run loudnorm and the limiter in ONE filter chain, from `base.mp4`.** The
+command above — limiting a file that has already been encoded to AAC — is the
+thing to avoid, and two earlier versions of this note misdiagnosed why.
 
-`limit=0.794` (−2 dBFS) landed the same file at **−1.3 dBTP** and cost only
-0.2 LUFS (−14.45 → −14.67, still in spec). Start there.
+The 2026-09-05 delivery came out of loudnorm at **+0.43 dBTP** (clipping).
+Limiting that file at `0.794` moved it only to **+0.19**. The note then in force
+blamed the ceiling and said to go lower. That was wrong: with the *same*
+`0.794`, chained directly after loudnorm so the audio is encoded **once**, the
+same material landed at **−0.96 dBTP**. Measured sweep on that video:
 
-Two process notes: apply the limiter to the **loudnorm output**, not to an
-already-limited file, or you double-limit; and keep that intermediate around
-(`final_*_nolimit.mp4`) so you can retry at a different ceiling without redoing
-the composite. Worth wiring the measure-and-limit decision into the compose
-script rather than doing it by hand — it runs on every delivery anyway.
+| ceiling | dBFS | I (LUFS) | TP (dBTP) |
+|---|---|---|---|
+| none | — | −14.50 | **+0.43** |
+| 0.794 | −2 | −14.72 | **−0.96** |
+| 0.708 | −3 | −14.99 | −1.78 |
+| 0.631 | −4 | −15.33 | −2.41 |
+
+The culprit is the **second AAC encode**. Decoding AAC, limiting the sample
+peaks, and re-encoding regenerates inter-sample peaks above the ceiling — and it
+costs a generation of quality for nothing. So:
+
+```bash
+# pass 1 measures base.mp4, then a single pass applies both and encodes once
+af="loudnorm=I=-14:TP=-1:LRA=11:measured_I=…:linear=true,\
+alimiter=limit=0.794:attack=5:release=50:level=disabled"
+ffmpeg -i base.mp4 -map 0:v -map 0:a -c:v copy -af "$af" \
+       -c:a aac -b:a 192k -ar 48000 -movflags +faststart final.mp4
+```
+
+`0.794` is the right default: −0.96 dBTP for 0.2 LUFS. Only go lower if a
+measurement says so. Note this means running `render.py` with `--no-loudnorm`
+and doing the audio stage yourself — its built-in loudnorm produces exactly the
+already-encoded file you don't want to limit.
+
+Keep measuring the finished file regardless. Three consecutive deliveries came
+out at −0.37, −0.45 and **+0.43** dBTP from identical settings; the third would
+have shipped clipped on the strength of the first two.
 
 Parsing pass 1: write ffmpeg's stderr to a **file** and read it back, rather
 than `capture_output=True` — the in-memory capture came back empty once and a
