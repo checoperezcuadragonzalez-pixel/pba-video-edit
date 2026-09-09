@@ -15,6 +15,7 @@ house style and the accumulated production knowledge.
 | [SKILL.md](SKILL.md) | The process, the brand rules, and the cutaway pattern — how many, how long, how often |
 | [references/cutting-and-render-notes.md](references/cutting-and-render-notes.md) | Building a cut from raw footage, and every gotcha in the transcribe → EDL → extract → composite → loudnorm pipeline |
 | [references/remotion-technical-notes.md](references/remotion-technical-notes.md) | How the animations get built in Remotion and wired into the EDL |
+| [references/cutaway-visual-recipe.md](references/cutaway-visual-recipe.md) | The concrete, numeric motion vocabulary for cutaways — exact timings, the five card types, and the working HTML+GSAP+Playwright engine to hand off to a non-technical editor |
 
 ## The one idea worth stealing
 

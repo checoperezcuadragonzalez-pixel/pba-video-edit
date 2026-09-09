@@ -1,0 +1,98 @@
+[
+  { "id": "caso-uno", "type": "stat", "start": 30.0, "end": 34.5,
+    "kicker": "CASO UNO", "icon": "🧑‍💻",
+    "name": "Adam, 18 años", "detail": "Su primer cliente le pagó",
+    "valuePrefix": "$", "valueNumber": 450, "valueSuffix": "",
+    "statLabel": "dólares, a las pocas semanas" },
+
+  { "id": "caso-dos", "type": "stat", "start": 37.2, "end": 41.5,
+    "kicker": "CASO DOS", "icon": "🎬",
+    "name": "David, editor de video", "detail": "De $7 por minuto a",
+    "valuePrefix": "$", "valueNumber": 500, "valueSuffix": "",
+    "statLabel": "por video" },
+
+  { "id": "descargo", "type": "statement", "start": 59.8, "end": 65.5,
+    "kicker": "DESCARGO", "icon": "⚠️",
+    "headline": "No te garantizo dinero." },
+
+  { "id": "mentira-uno", "type": "statement", "start": 136.6, "end": 141.6,
+    "kicker": "MENTIRA UNO", "icon": "🚫",
+    "headline": "Necesitas dinero para empezar." },
+
+  { "id": "mentira-dos", "type": "statement", "start": 182.8, "end": 187.8,
+    "kicker": "MENTIRA DOS", "icon": "🚫",
+    "headline": "Necesitas seguidores." },
+
+  { "id": "mentira-tres", "type": "statement", "start": 239.9, "end": 244.9,
+    "kicker": "MENTIRA TRES", "icon": "🚫",
+    "headline": "Fallaste porque eres flojo." },
+
+  { "id": "la-senal", "type": "statement", "start": 293.033, "end": 298.533,
+    "kicker": "LA SEÑAL", "icon": "✨", "emphasisWord": "semanas,",
+    "headline": "La primera señal en semanas," },
+
+  { "id": "tu-dia", "type": "list", "start": 352.4, "end": 357.8,
+    "kicker": "TU DÍA",
+    "items": [
+      { "icon": "🔔", "text": "Suena la alarma, 20 minutos en el celular" },
+      { "icon": "🏫", "text": "Escuela o chamba, se te va el día" },
+      { "icon": "🌙", "text": "Vuelves a las ocho, la ventana de dos horas" },
+      { "icon": "💻", "text": "A las once cierras la laptop" }
+    ] },
+
+  { "id": "esto-no-es-para-ti", "type": "list", "start": 416.2, "end": 424.3,
+    "kicker": "ESTO NO ES PARA TI SI",
+    "items": [
+      { "icon": "🚫", "text": "Quieres dinero sin darle un servicio a nadie" },
+      { "icon": "🚫", "text": "Quieres que te lo hagan" },
+      { "icon": "🚫", "text": "Ya decidiste que todo es humo", "dim": true }
+    ] },
+
+  { "id": "caso-dos-antes-ahora", "type": "comparison", "start": 485.9, "end": 489.6,
+    "kicker": "CASO DOS",
+    "left":  { "label": "antes", "tone": "muted", "lines": ["$150 al mes", "18 horas pegado", "a la computadora"] },
+    "right": { "label": "ahora, por cliente", "tone": "gold", "value": "$500" } },
+
+  { "id": "tu-siguiente-paso", "type": "comparison", "start": 555.0, "end": 560.0,
+    "kicker": "TU SIGUIENTE PASO",
+    "left":  { "label": "hasta tu primer cliente", "tone": "bold", "value": "4-6 semanas" },
+    "right": { "label": "cobrados, no prometidos", "tone": "gold", "value": "$500 - 1,000", "dim": true } },
+
+  { "id": "razon-uno", "type": "statement", "start": 1239.6, "end": 1244.6,
+    "kicker": "• RAZÓN UNO", "icon": "🧩",
+    "headline": "Te vas a atorar en lo técnico." },
+
+  { "id": "razon-dos", "type": "statement", "start": 1266.8, "end": 1271.8,
+    "kicker": "• RAZÓN DOS", "icon": "🎯",
+    "headline": "No vas a saber si tu oferta sirve." },
+
+  { "id": "razon-tres", "type": "statement", "start": 1293.2, "end": 1298.2,
+    "kicker": "• RAZÓN TRES", "icon": "👁️",
+    "headline": "Nadie te está viendo.",
+    "subtext": "Y es la que mata más gente." },
+
+  { "id": "cero-humo", "type": "statement", "start": 1354.1, "end": 1359.1,
+    "kicker": "CERO HUMO", "icon": "🚭", "emphasisWord": "aplicas.",
+    "headline": "Lo que sabes no vale nada",
+    "subtext": "si no lo aplicas." },
+
+  { "id": "lo-que-hay-dentro", "type": "list", "start": 1388.23, "end": 1395.23,
+    "kicker": "LO QUE HAY DENTRO",
+    "items": [
+      { "icon": "📞", "text": "Llamadas conmigo cada dos semanas" },
+      { "icon": "🧠", "text": "Acceso a expertos y llamadas grupales" },
+      { "icon": "🤝", "text": "Comunidad de jóvenes arquitectos de negocios" },
+      { "icon": "🏆", "text": "Retos y dinámicas para progresar más rápido" },
+      { "icon": "🎓", "text": "Más de seis cursos de las tres áreas", "dim": true }
+    ] },
+
+  { "id": "dos-caminos", "type": "comparison", "start": 1427.23, "end": 1432.63,
+    "kicker": "DOS CAMINOS",
+    "left":  { "label": "Uno, por tu cuenta", "tone": "muted", "lines": ["Se puede.", "Pagas con tiempo", "y meses atorado."] },
+    "right": { "label": "Dos, con la ruta", "tone": "bold", "lines": ["La ruta armada", "y gente que te acompaña."] } },
+
+  { "id": "lo-que-si-y-no", "type": "comparison", "start": 1480.43, "end": 1486.23,
+    "kicker": "LO QUE SÍ Y LO QUE NO",
+    "left":  { "label": "No te prometo", "tone": "muted", "lines": ["$10,000", "clientes", "ingresos"] },
+    "right": { "label": "Sí te garantizo", "tone": "bold", "lines": ["El paso a paso", "y el acompañamiento."] } }
+]

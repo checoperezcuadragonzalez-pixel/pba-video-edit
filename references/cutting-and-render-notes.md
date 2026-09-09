@@ -73,8 +73,28 @@ for d, t in sorted(long, reverse=True)[:20]:
     print(f"{d:6.2f}  {t!r}")
 ```
 
-If the top of the list is ~1.9s and there are no 3s+ entries, the transcript has
-no Scribe padding artefacts at all and a generous `MAX_WORD` costs nothing.
+If the top of the list is ~1.9s and there are no 3s+ entries, a generous
+`MAX_WORD` costs nothing.
+
+**But that histogram does not tell you the transcript is free of padding.** An
+earlier version of this note concluded exactly that, and it was wrong. Scribe
+pads in two places and they have different signatures:
+
+- **Word-level padding** — a single word's span swallowing seconds of silence.
+  That is what the histogram finds, and what `MAX_WORD` clamps.
+- **End-of-phrase padding** — the last word of a *sentence* running to where the
+  next phrase begins. This shows up as spans of 0.4–1.7s, which are completely
+  ordinary word lengths, so the histogram is blind to it.
+
+On the 2026-09-05 VSL the longest word was `'artificial,'` at 1.96s with not one
+3s+ outlier — and the boundary diagnostic still reported **13 edges landing
+inside a reported span**, every one of them the last word of a sentence.
+`'vida.'` is reported `651.760–653.460` while the audio goes quiet at
+**652.00**: 1.46s of padding hiding inside a plausible 1.7s span.
+
+So the histogram sets `MAX_WORD` and nothing more. What decides whether you can
+trust Scribe's edges is the boundary diagnostic plus a PCM measurement — and the
+answer has been "no" on every video that had back-to-back retakes.
 
 ### Trap 1b: Scribe emits three decimals, and rounding them decapitates words
 

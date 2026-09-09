@@ -125,6 +125,38 @@ building anything on top of it.** Residue at drop boundaries is invisible in
 the raw transcript and obvious in the cut one. This check has caught a real
 defect on every video so far.
 
+### The presenter may direct the edit from inside the take
+
+Before writing a single drop, scan the transcript for the presenter talking
+**to you** rather than to the viewer. On one VSL he did it twice, by name:
+
+> *"Eso quítalo, CloudCode, eso quítalo, lo de: «y por qué esto no es otra
+> cosa», lo de que la puerta va a seguir abierta, quítalo."*
+
+> *"Eso también quítalo."*
+
+Those are instructions, not content, and they are binding — the second one
+retired a whole "cada semana que no entras es una auditoría que pierdes"
+argument he had just finished delivering. Between them they took out 31
+seconds that every other signal said to keep: the audio is clean, the delivery
+is good, and nothing in the phrase-level transcript looks like a retake.
+
+Three things follow:
+
+1. **The instruction removes the block it points at, *plus itself*.** Draw the
+   drop wide enough to swallow the rejected material and the aside — he is not
+   narrating for the audience when he says it.
+2. **Resolve what "eso" refers to before writing the drop.** It points
+   backwards, sometimes past an intervening sentence, and in the case above it
+   named two separate blocks in one breath.
+3. **Surface it during propose-strategy, quoted.** The user should not discover
+   in the finished file that a section he remembers recording is gone — even
+   though he is the one who asked for it.
+
+Search terms that have caught these: the assistant's name in any spelling
+(Scribe has written "CloudCode", "Cloud Code" and "Claude" for the same word),
+plus `quítalo`, `córtalo`, `bórralo`, `eso no va`, `edítalo`, `esto lo quitas`.
+
 ### Scan for capture failure before planning anything
 
 Sampling frames across the runtime catches the screen-share hybrid described
@@ -139,6 +171,26 @@ Find the exact boundaries by classifying every second, not by eyeballing
 samples — decode at `fps=1` scaled to 96×54 grayscale and threshold the mean
 luma. That turns a vague "something's wrong around minute 17" into
 `983.5–1376.0s`, which is what you need to write a drop.
+
+**Make it a three-way classifier, not black/not-black** — the same single pass
+then answers the screen-share question too, and screen-share is far more common
+than capture failure. Thresholds that have worked on this camera and this room:
+
+| mean luma | is |
+|---|---|
+| `< 12` | black — capture failure or an OBS scene transition |
+| `12–52` | screen-share (a dark IDE/browser, letterboxed, webcam PIP) |
+| `≥ 52` | lit camera |
+
+On a 23:13 VSL that one command printed `0–701 CAM · 701–805 SCREEN · 805–807
+BLACK · 807–810 SCREEN · 810–1393 CAM`, which is the whole structural map of the
+video before reading a word of the transcript.
+
+Note the 2-second black *inside* the screen-share. **A short black bounded by
+screen-share on both sides is an OBS scene transition, not a capture failure** —
+the failure mode runs for minutes and the audio keeps going over it. Judge by
+duration and by what sits on either side, and don't let a 2s transition
+scare you into treating a working demo as damaged.
 
 Smooth that classification (a 9-second median) so one dark frame doesn't invent
 a region — **and then run a second, unsmoothed scan later**, because the
@@ -212,6 +264,8 @@ a shipped-quality defect at least once.
    **Gate:** the inside-vs-after word check (see the payoff-anchoring section).
 6. Build the graphics with parallel sub-agents into versioned dirs
    (`src/slots/vN/` → `out_vN/`), never overwriting a previous video's renders.
+   **Gate:** see "Inspect every graphic before you composite" below. This one
+   is new and it is the cheapest gate in the whole pipeline.
 7. Measure segment drift, then write the final EDL with corrected overlay times.
    **Gate:** re-derived times must match the stored ones to ~0.000s.
 8. Composite → loudnorm → **measure true peak** → limiter if needed.
@@ -315,16 +369,43 @@ uses b-roll than to a slide deck with a narrator.
 So: many short cutaways beat few long ones, even if the "few long ones" target
 the objectively most technical parts.
 
-**Calibration from four shipped videos:** 18 cutaways each, landing at
+**Calibration from five shipped videos:** 18 cutaways each, landing at
 9–13.5% of total runtime, which works out to roughly **one per minute**. The
 per-minute cadence is the number that matters; the percentage follows from it.
 One cutaway per video may run ~8s if it's a genuine recap or table that can't
 be chunked — flag that as a deviation during propose-strategy.
 
+That "18" is remarkably stable, and it is a coincidence worth not reading too
+much into: **derive the count from the camera runtime, don't reach for 18.** On
+a 15:12 VSL with a 1:17 screen-share, 835s of camera at one per minute gives
+14 — and 18 only became right because four card *families* (three creencias,
+three pasos, three preguntas del filtro, plus the singles) each wanted all
+three members for the repetition to land. That came to 92.9s, **10.2% of total
+and 1.29 per minute of camera**, both in band. Count the beats the material
+actually has, then check the cadence; don't pick the number first.
+
 If a strategy conversation surfaces a real reason for a longer block (the user
 explicitly asks, or a segment genuinely can't be chunked — a full worked
 example, say), that's fine to build, but it's a deviation to confirm, not the
 default.
+
+### Cadence and brand tokens are not enough — the cards still read as "básico" without a motion vocabulary
+
+A session handed an editor the cadence rules above plus the brand's color and
+font tokens, and the editor built technically-correct cutaways — right
+length, right cadence, right colors — that still read flat: plain text
+fading in on black, no icon, one motion for the whole card. Getting the
+*rules* right and the *palette* right is not sufficient; what transmits the
+"premium" quality is a specific, numeric motion vocabulary — per-element
+stagger, blur-to-focus text entrances, glass/gold materials instead of flat
+fills, real icon or emoji on every single card — and that only survives being
+handed off as exact numbers and working code, not adjectives.
+
+**[references/cutaway-visual-recipe.md](references/cutaway-visual-recipe.md)
+is that handoff.** Read it before building or briefing any cutaway, and give
+it verbatim (with its two source files) to anyone who isn't going to read
+this whole skill — it's the concrete, copy-paste version of everything this
+section describes in the abstract.
 
 **Do not splice cutaways into the EDL's `ranges`.** They go in `overlays` as
 opaque full-frame clips. This is the single most important structural decision
@@ -431,6 +512,42 @@ limiter over it (video stream-copied, so it's quick) and re-measure. Sources
 have arrived both clipping (+2.16 dBTP) and 16 dB too quiet, so this step
 always earns its keep. Exact commands are in the cutting-and-render notes.
 
+## Inspect every graphic before you composite
+
+The composite is the expensive step, and **you cannot shorten the loop by
+swapping a file mid-render**: ffmpeg opens all inputs at start and reads them
+progressively, so overwriting an overlay while the render is running corrupts
+the output. The only recovery is stop → fix → restart from zero.
+
+Budget it properly, and **do not estimate the rate from the first few minutes**
+— the setup where 20-odd inputs are opened drags the early average down by 4×.
+On a 15:12 1080p60 video with 21 overlays (three of them ProRes 4444 alpha) an
+early sample read 12% in 9 minutes, implying 75 minutes; the steady-state rate
+was **~51 fps, so about 18 minutes**. Large ProRes 4444 inputs turn out not to
+cost much. Sample twice with a known gap, after the first minute.
+
+So spend five minutes first. Two checks, both on the renders themselves:
+
+1. **One contact sheet of every opaque cutaway near its end frame** (~88% in,
+   where everything has landed). Six across reads fine for 18 cards. This is
+   where a family that drifted apart becomes obvious, and where you notice the
+   one card that is merely OK.
+2. **A test composite of every alpha overlay over `base.mp4`**, two moments
+   each — see the Remotion notes. Isolated alpha checks pass on overlays that
+   are unreadable over footage.
+
+Then **read the weakest three or four at ~900px** rather than trusting the
+tiled thumbnails. On the 2026-09-05 VSL the sheet looked uniformly fine and a
+full-size still showed the one genuine defect: a two-column contrast card whose
+right line wrapped to an orphaned word, which broke exactly the symmetry the
+card existed to create.
+
+Sub-agents are honest but they grade their own card in isolation. They cannot
+see that card six drifted from card five, and they cannot see their overlay
+against the footage. Both of those are your job and neither survives being
+skipped — that session restarted the composite twice, and both restarts were
+avoidable by doing this first.
+
 ## Before you show the user anything
 
 Run the self-eval on the **rendered output**, not on the source clips. Three
@@ -448,3 +565,20 @@ them is worth writing once per project:
 That third sheet is the one that keeps finding real defects. Budget for at
 least one fix-and-re-render cycle; the composite step is cheap to repeat
 because the expensive extraction is already cached.
+
+**Read it at thumbnail size, and trust that reading.** Its power is that a cell
+which looks black in the tile is a cell that reads as a dip at 1× — even when
+the full-size frame turns out to be perfectly legible. On the 2026-09-05 VSL
+exactly one of eighteen middle cells read black; pulled at full size it showed
+readable text, and it was still a real defect (see the "element that enters is
+deliberately dim" case in the Remotion notes). Don't let a full-size still talk
+you out of what the sheet showed you.
+
+A fourth, cheap check is worth adding to the same helper: sample every cutaway
+midpoint and boundary frame and assert the frame is not **empty**. Use the
+**peak** luma, never the mean — a brand card is black by construction and its
+mean sits at 5–8/255, so a mean threshold flags all eighteen and tells you
+nothing. Measured on this video: a healthy card peaks at 76–255, a true black
+or an OBS transition peaks under 30. A first version used mean luma and
+reported 11 defects where there were none; a second added "percent of pixels
+above 90" and still flagged two healthy frames. Peak alone was the signal.

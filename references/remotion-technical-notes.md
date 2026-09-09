@@ -100,10 +100,68 @@ background — Chrome's `omitBackground` only activates for PNG/WebP. CLI flags
 override the config file, so pass it on every alpha render regardless.
 
 Verifying the `.mov` in isolation is necessary but not sufficient. **Also
-confirm the alpha survived compositing**, by looking at the finished video (or
-a cheap test composite over a few seconds of footage). If it didn't, the
-overlay reads as a black rectangle sitting on the camera — unmistakable once
-you look, invisible if you only check ffprobe.
+confirm the alpha survived compositing.** If it didn't, the overlay reads as a
+black rectangle sitting on the camera — unmistakable once you look, invisible
+if you only check ffprobe.
+
+### Test-composite every alpha overlay over `base.mp4` — as a gate, before the real composite
+
+Do not wait for the finished video to look at this. Once `base.mp4` exists, one
+frame per overlay costs seconds:
+
+```bash
+# t = the overlay's start_in_output + an offset into the overlay
+ffmpeg -y -v error -ss 60.808 -i base.mp4 -ss 5.0 -i out_v7/ovbio7.mov \
+  -filter_complex "[0:v][1:v]overlay=0:0" -frames:v 1 alphatest_bio.png
+```
+
+Then **read the PNG and look at it.** Sample two moments per overlay, at
+different background brightness — the whole point is the interaction with the
+footage, and one frame does not represent it.
+
+On the 2026-09-05 VSL this gate paid for itself immediately. All three alphas
+passed every isolated check — `distinct alpha` in the 240s, transparent corner,
+correct bounding box — and two of the three were **unreadable over the
+footage**. The composite was already running; it had to be killed at 10% and
+restarted, and catching it here instead of at the end saved about an hour.
+
+**You cannot hot-swap an overlay while the composite runs.** ffmpeg opens all
+inputs at start and reads them progressively, so overwriting a `.mov` mid-render
+corrupts the output. Stop the composite, fix, restart.
+
+### `GlassPanel` alone is not enough over lit footage — it needs a dark scrim
+
+This is what those two overlays got wrong, and it is a trap built into the brand
+kit. `GlassPanel`'s fill is `rgba(255,255,255,0.06)` — it **adds light**. On the
+black stage of an opaque cutaway that reads as a soft-tinted card, which is the
+intended look. Over live camera footage of a lit room it adds nothing but haze,
+and small text on top of it has no contrast to sit against.
+
+The failure is graduated, which is why it survives a sub-agent's self-check: the
+big line reads fine and the agent honestly reports "the card is legible". On the
+identity lower-third, `Checo` at 44px was crisp while `+$2,000 por cliente` and
+`+70 personas en la academia` were invisible. On the CTA card the wordmark was
+crisp and `+ el documento gratis: los 5 cuellos de botella` was gone.
+
+Fix: put a **dark backing under the sheen**, inside the panel only, so it still
+reads as brand glass rather than a flat black box:
+
+```jsx
+background: `${GLASS.sheen}, rgba(5,5,5,0.62)`   // en vez de GLASS.fill
+```
+
+`0.50` was still marginal against lamp-lit cymbals; **`0.62` is the number that
+worked**, on both cards, and it does not kill the glass character — the drum kit
+is still visible through it. Bump the small lines from `COLOR.textBody` to
+`COLOR.white` and one weight step while you are there.
+
+Also swap `GLASS.shadow` (60px blur) for `GLASS.shadowSm` (30px) on any card
+with a tight safe area: the wide halo counts against the box and has twice now
+bled onto the presenter's face.
+
+Tell the sub-agent this up front for any alpha overlay. The brief should say
+"over live footage, `GlassPanel`'s default fill will not carry small text — put
+a `rgba(5,5,5,0.6)` scrim under the sheen", or you will be fixing it afterwards.
 
 ## Entrances must be fast, and "fast" means the headline
 
@@ -144,6 +202,40 @@ text. The sub-agent will report "the block is visible as a shape at 0.35s" and
 be telling the truth either way — only the boundary contact sheet on the
 finished render settles it. This was the one defect that survived to the final
 render on this video, which is a good reminder that the sheet earns its place.
+
+### The third variant: when the element that ENTERS is deliberately dim
+
+Both cases above are about a placeholder being too faint. There is a nastier
+one where every element is exactly as bright as intended and the entrance still
+dips — because the *design* puts the muted element first.
+
+A two-sided contrast card (`SOBRAN` in muted gray / `FALTAN` in white plus
+amarillo) enters with the left column only; the right is ghosted until its beat
+at 2.8s. That is correct anchoring and correct hierarchy. But it means that for
+the first three seconds the brightest pixel in the frame is muted gray —
+measured at **76/255** — and the hard cut from lit camera reads as a dip.
+
+Neither the ghost-floor rule nor "the headline must be opaque by 0.35s" catches
+it: the headline *was* opaque, it was just dark. The sub-agent reported "the
+left line is clearly readable" and was right. **Only the boundary contact sheet
+settles it** — at thumbnail size the cell reads black, which is exactly the
+viewer's impression at 1×.
+
+Fix without abandoning the hierarchy: enter at body brightness and **recede**
+when the other side lands.
+
+```jsx
+color: COLOR.textBody,                        // en vez de textMuted
+opacity: lineL * (0.92 - 0.30 * land),        // entra a 0.92, baja a 0.62
+```
+
+Peak went 76 → 132 at 0.45s and the final frame is unchanged. It also tells the
+story better: the two sides start equal and then one wins, instead of one
+arriving pre-defeated.
+
+So when briefing a contrast card, say it explicitly: **whatever is on screen
+during the first second has to carry the frame, even if it is the side you
+intend to devalue.** Devalue it on the landing beat, not on the entrance.
 
 Also universal: hold the final composed frame completely still for the last
 ~1s, and **do not fade to black at the end** — the hard cut back to camera
@@ -222,7 +314,10 @@ Each brief must be self-contained. Include, every time:
    `tokens.ts` still exports a stale `FPS` constant from an older video —
    every slot must declare its own.
 5. Opaque-vs-transparent, and the exact render command including
-   `--image-format=png` for alpha.
+   `--image-format=png` for alpha. For a transparent overlay, add the scrim
+   rule — `GlassPanel`'s default fill will not carry small text over lit
+   footage, put `rgba(5,5,5,0.6)` under the sheen — and `GLASS.shadowSm`
+   rather than `GLASS.shadow` when the safe area is tight.
 6. Import depth (`../` vs `../../`).
 7. Brand rules, including both Perezcuadra traps (accented uppercase renders
    broken; the slashed zero reads as a Q **in any position** — so mono kickers
