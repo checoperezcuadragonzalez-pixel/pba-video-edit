@@ -154,8 +154,15 @@ Three things follow:
    though he is the one who asked for it.
 
 Search terms that have caught these: the assistant's name in any spelling
-(Scribe has written "CloudCode", "Cloud Code" and "Claude" for the same word),
-plus `quítalo`, `córtalo`, `bórralo`, `eso no va`, `edítalo`, `esto lo quitas`.
+(Scribe has written "CloudCode", "Cloud Code", "Claude" and **"Claudio"** for
+the same word), plus `quítalo`, `córtalo`, `bórralo`, `eso no va`, `edítalo`,
+`esto lo quitas`, `esto lo va a quitar`.
+
+The 2026-09-12 VSL had one in the third person — *"Pinche Claudio lo escribió de
+la verga, güey."* … *"No, esto lo va a quitar a la verga."* He is talking about
+you rather than to you, and the instruction is still binding: it announced a
+136-second retake of the whole block he had just delivered. So grep for the name
+even when the surrounding sentence is not addressed to anyone.
 
 ### Scan for capture failure before planning anything
 
@@ -225,6 +232,35 @@ build — it's **how hard to cut**. Offer two levels and let them pick:
 
 Default to **limpieza** and say why. The material is usually tighter than it
 feels, and on a face-to-camera video the pauses *are* the delivery.
+
+**When they do pick agresivo, generate the pause pass — don't hand-write it.**
+Squeezing every pause on a 25-minute video is 90-odd drops and hand-placing them
+is both slow and worse: the envelope already knows where every valley is and how
+long it runs. Two passes in one builder, kept separate in the source:
+
+```python
+DROPS_EDIT = [...]                       # retakes, interruptions, false starts
+for v0, v1 in valleys(db):               # generated
+    if v1 - v0 <= 0.60: continue
+    if any(v0 < b and v1 > a for a, b, _ in DROPS_EDIT): continue
+    squeeze.append((v0 + 0.175, v1 - 0.175, ...))     # deja 0.35s
+```
+
+Skipping valleys that overlap a hand-placed drop matters: otherwise the
+generated pass moves a boundary you reasoned about. And it keeps the join table
+readable — print only the editorial joins, since the squeezed ones are 0.35s by
+construction and don't change a word.
+
+**Exclude the file-tail valley.** It is not a pause between phrases, and the
+generated rule ends the video 0.15s after the last syllable — which reads as the
+file being cut off rather than the video ending. On the 2026-09-12 VSL the
+trailing valley ran from 1521.0 to EOF and the squeeze left the last range at
+1521.155 against a final `'DM.'` whose audio stops at 1521.0. Declaring
+`(1521.70, SRC_DUR)` as an editorial drop fixes it in one line: the squeeze pass
+skips it (it overlaps a hand drop) and the video rests on 0.70s of air.
+
+That fix costs one segment, not a re-extraction — see the single-segment
+recovery in the cutting notes.
 
 **Check for retakes before quoting either number.** A raw VSL turned out to
 have five attempts at one line (one of them wrong — the negation dropped out),

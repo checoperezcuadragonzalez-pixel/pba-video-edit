@@ -215,6 +215,35 @@ of every boundary and requires ≥30ms of continuous silence:
 Make the build-time gate say "confirm with the audio check" rather than
 "REVISAR", or you will spend the session chasing failures that aren't there.
 
+### Never put a boundary on a valley's end index
+
+The valley finder returns `(start, end)` where `end` is the index of the **first
+window that is loud again**. Copying that number straight into a drop puts the
+cut exactly on the first sample of speech. On the 2026-09-12 VSL two of the
+fourteen editorial drops were written that way, both read fine in the transcript,
+and both came back from the PCM gate as `0ms / 0ms — CORTA HABLA`.
+
+Retreat 60–100ms inside the valley. That is also the only failure the PCM gate
+caught on that video, which is a good argument for running it on every build
+rather than only when something looks off.
+
+### The widest valley is not always the right side of a retake
+
+The instinct after measuring is to put the boundary in the biggest gap you can
+find. That is right when the gap separates the two takes — and wrong when the
+discarded take *starts before it*.
+
+On the 2026-09-12 VSL the good line ended `"...así de fácil."`, then a laugh,
+then `"Okey, entonces,"` — the opening of a 136-second take he was about to
+abandon — and only then the 1.44s valley. Anchoring to that valley kept both
+words, and the cut shipped with two syllables of the bad take glued to the good
+one. The only real gap was **120ms**, between the laugh and that `"Okey"`.
+
+So: find where the discarded take *begins*, then look for silence before that
+point — not for the most comfortable silence in the neighbourhood. And this is
+invisible to every gate except reading the transcript of the cut, because 120ms
+and 1440ms both pass the clearance check.
+
 ## Black frames from scene transitions land inside cuts
 
 A failure class that **no other gate can see**. The transcript of the cut reads
@@ -521,6 +550,43 @@ artifacts that are not defects:
   30 "divergences" were ASR variance. Before chasing one, compute its distance
   to the nearest join — anything mid-segment is untouched audio by construction.
 
+### Locate the joins by TEXT, not by timecode — the render transcript drifts
+
+A third artifact, and it is the one that will convince you the render is broken.
+**Scribe's timestamps on the render can be stretched.** On the 2026-09-12 cut
+(19:42, 107 segments) they ran long by 0.18%: the offset grows monotonically
+from +0.01s at the head to **+2.85s** at the tail, and the last word is reported
+ending at 1185.008s in a file that is 1182.925s long.
+
+Ask for the words around a computed join timecode and, late in the video, you
+get words from three seconds earlier — which reads exactly like a seam that
+landed in the wrong place. Two joins looked catastrophic before the cause was
+found.
+
+The one-line tell: **compare the transcript's last word against the file's
+duration.** If it ends past EOF, every timestamp in that file is suspect and
+only the text is usable.
+
+Confirm the render before blaming it. Cross-correlate a couple of seconds of an
+individual clip against `base.mp4` near its expected offset, sampling early,
+middle and late:
+
+```
+seg   5  predicho   144.783  real   144.840   delta +0.057s
+seg  50  predicho   519.550  real   519.608   delta +0.058s
+seg 100  predicho  1067.000  real  1067.063   delta +0.063s
+```
+
+Constant, not accumulating — that is AAC priming, and it means the concat is
+exact. (Had it grown ~21ms per segment, *that* would have been real: encoder
+delay stacking into a genuine A/V desync, which at 107 segments would be over
+two seconds by the end.)
+
+With the render cleared, locate each join by aligning the EDL-predicted word
+sequence against the render's with `difflib` over normalised text, then read
+around the aligned **index**. The index is the reliable coordinate; the clock is
+not.
+
 ## Grade is baked at extraction — plan around it
 
 `render.py` applies the EDL's `grade` during **per-segment extraction**. Two
@@ -605,6 +671,23 @@ Parsing pass 1: write ffmpeg's stderr to a **file** and read it back, rather
 than `capture_output=True` — the in-memory capture came back empty once and a
 file is easy to inspect when parsing fails. Add `-nostats` to keep the progress
 spam out.
+
+## When one range changes, re-extract one segment
+
+Extraction is the expensive step — 107 segments of a 25-minute 1080p60 source
+took about 40 minutes. So when a late fix moves a single boundary, do not re-run
+`render.py`. Diff the old and new EDL first; on the 2026-09-12 tail fix exactly
+one range moved.
+
+Then re-extract that segment alone, matching `extract_segment`'s parameters
+exactly (`-ss` before `-i`, `scale=1920:-2`, 30ms fades at both edges, libx264
+fast CRF 20, yuv420p, aac 192k @ 48k) and rebuild the concat by hand. Total cost
+was under a minute against 40. The 30ms fades are the part that is easy to
+forget and the part that produces pops if you do.
+
+Verify with the same two gates as a full run: `ffprobe` the new base against
+`total_duration_s` (expect it a few tenths longer), and re-run the pop check —
+a hand-built segment is exactly where a missing fade would hide.
 
 ## `base.mp4` has shipped truncated — measure it, never assume
 
