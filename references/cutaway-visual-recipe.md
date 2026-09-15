@@ -49,8 +49,11 @@ emoji on every card". The user rejected that outright after seeing the first
 Remotion port: bare emoji icons (🧑‍💻, 🚫, 🔔…) read as generic template
 filler, and on Windows the emoji font renders visibly worse than on the
 platform they were designed on, so the problem is worse there, not incidental.
-Piling on ambient film grain as a blanket "premium" texture on every card had
-the same effect — it reads as a template stamp, not craft.
+(The ambient grain + slow drift in `CutawayBackground` was *not* the problem
+— a follow-up correction confirmed the user wants that kept on every card, for
+the same reason it existed originally: it keeps a long static hold from
+reading as a frozen frame. It was the bare emoji specifically that read as
+generic filler.)
 
 What replaces it:
 
@@ -81,20 +84,40 @@ What replaces it:
   would `brand-pba-code` do" as if matching an existing formula were the goal.
   The formula is not the brand; the color and type system is.
 
-The five templates in `remotion/src/cutaways/` (`Statement`, `Stat`,
-`ListCard`, `Comparison`, `Diagram`) are still a fine *starting point* for the
-common cases they cover, and their `icon` fields are optional — omit them for
-a pure-text card. **They do not yet render a real image in place of an
-emoji** — `IconBadge`/the hero-icon slot in `Statement.tsx` render whatever
-string they're given as text, so a file path or URL would just print as text,
-not display as a picture. Swapping an emoji field for a generated or supplied
-image is a real code change (an `<Img src={staticFile(...)} />` in place of
-the emoji `<div>`), not a drop-in string replacement — do that work when a
-specific card actually needs it, don't claim the capability exists until it
-does. But treat these five as a starting point, not the ceiling: a video with
+### Correction, 2026-09-15 (same day, second pass): centered by default, and images are real now
+
+A first pass at the fix above still left every template left-aligned at
+`x=150` (a holdover from the old engine's layout) and had no actual way to
+show a real photo — `icon` fields were emoji-only text. The user's follow-up
+correction: **center everything** (not stacked against the left edge), and
+build the real image path since a card will need one eventually.
+
+Both are done:
+
+- All five templates (`Statement`, `Stat`, `ListCard`, `Comparison`,
+  `Diagram`) now render centered on the 1920×1080 canvas — kicker, headline,
+  value, list rows, all anchored at `x=960` with `translateX(-50%)`, not
+  left-stacked. `Comparison`'s two columns are the one legitimate exception
+  (a comparison needs two distinct positions by definition), but the text
+  *within* each column is centered.
+- `icon` fields were replaced with `image?: string` across every entry type
+  (`types.ts`) — a `public/`-relative path resolved with `staticFile()`, never
+  an emoji. `MediaBadge.tsx` replaces the old `IconBadge.tsx`: it renders a
+  real `<Img>` in a glass circle when `image` is supplied, or a plain gold dot
+  marker when it isn't. `ListCard`'s emoji-per-row markers became the same
+  gold dot. `Diagram`'s node/hub emoji became plain circles (`MediaBadge` with
+  no image) connected by the same drawn lines as before — genuinely
+  HTML/CSS/SVG, no emoji anywhere in the diagram.
+- There is still no automated "generate the image" step wired in — when a
+  card needs a photo, either call the image-generation tooling and pass the
+  resulting file's path as `image`, or ask the user for the real photo, per
+  the judgment call described above, then pass that path. Say which you did.
+
+Treat these five templates as a starting point, not the ceiling: a video with
 strong numeric or systemic content deserves a bespoke scene built for that
-video, not
-a fifth `stat` card in the same shape as the last four.
+video (see `remotion/src/cutaways/bespoke/RevenueDashboard.tsx` — an animated
+revenue-dashboard mockup built for exactly this), not a fifth `stat` card in
+the same shape as the last four.
 
 ## The five element types and their exact timing
 
