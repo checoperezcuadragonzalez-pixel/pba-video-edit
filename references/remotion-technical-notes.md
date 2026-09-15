@@ -301,6 +301,37 @@ prescribing the marker yourself.
 Order matters: A must exist before B starts, and both must exist before their
 copies. That's three waves, not two.
 
+## Open Studio in the browser while building — don't only hand back stills
+
+The pipeline above (render → contact sheet → look at the PNG) is right for
+**verification gates**, but it is not a substitute for letting the user
+actually see the animation while it's being built. A session shipped several
+slots using only headless `npx remotion render` + stills, and the user called
+this out: when he asks for a motion graphic and gets shown a live, scrubbable
+Remotion Studio in the browser, he can react to it immediately (timing, color,
+a word that reads wrong); when he only gets rendered files, he can't, and it
+reads as "generic" even when the brand tokens are correct.
+
+So: after scaffolding a slot's `.tsx`/`.entry.tsx` pair, open Remotion Studio
+against that **entry file directly** — not the shared `Root.tsx` — so it stays
+parallel-safe:
+
+```bash
+npx remotion studio src/slots/vN/<Name>.entry.tsx
+```
+
+Register it as a preview server (same pattern as any other local dev server in
+this project) and open it in the browser for the user to scrub, rather than
+only sending a rendered `.mp4`/`.mov`. Do this **every time** a new cutaway or
+overlay is scaffolded or meaningfully revised — it's part of the build step,
+not an optional extra to offer.
+
+This is additive, not a replacement: the contact-sheet and alpha-over-footage
+gates later in the pipeline still run before the final composite. Studio shows
+the animation in isolation on its own transparent/black canvas; it cannot
+catch "unreadable over this specific footage" or alpha-survival-through-
+compositing defects, which is why those gates exist separately.
+
 ## Sub-agent brief checklist
 
 Each brief must be self-contained. Include, every time:

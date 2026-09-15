@@ -381,7 +381,11 @@ sibling slot for house style, tell it explicitly *not* to copy the fps from
 that sibling — it may belong to a different video.
 
 Everything else about wiring Remotion into the pipeline is in the technical
-notes.
+notes — including **opening Remotion Studio in the browser while building**
+each slot, not just handing back rendered stills. That's a correction from a
+real session: the user reacted much better to seeing the animation live than
+to receiving finished files, and generic-feeling output has traced back to
+skipping this step, not to wrong brand tokens.
 
 ## The cutaway pattern — the important part
 
