@@ -15,11 +15,9 @@ transmits through exact numbers and real code, not adjectives like "smooth" or
 
 If you are handing this off to someone who is not going to read the whole
 skill (an editor, a junior agent, a different tool), give them this file
-verbatim plus the two source files it's extracted from:
-`assets/cutaway-engine/engine.css` and `assets/cutaway-engine/build.mjs`
-(vendor those alongside this skill — see "Where the working code lives"
-below). They are a working, tested Playwright + GSAP renderer, not
-pseudocode.
+verbatim plus the source it's extracted from: `remotion/src/cutaways/` in the
+sibling Remotion project (see "Where the working code lives" below). They are
+working, tested Remotion components, not pseudocode.
 
 ## The failure mode, precisely
 
@@ -29,24 +27,74 @@ entrance move (a fade) applied to the whole block at once instead of staggered
 per element. That is indistinguishable from a PowerPoint title slide, and it
 reads as such at 1x speed no matter how correct the color values are.
 
-The fix has four ingredients, always together, never just one:
+The fix has three ingredients that still hold, always together, never just one:
 
-1. **A real icon or emoji on every card**, not just cards that are
-   conceptually "about" an object. A single-sentence claim still gets a
-   large, very-low-opacity emoji watermark in the corner (see below) — it is
-   the difference between a caption and a graphic.
-2. **Per-element stagger, not one fade for the whole card.** Kicker dot →
-   kicker label → hairline rule → headline (word by word) → icon, each on
-   its own beat, 60–160ms apart. The eye reads arrival, not appearance.
-3. **A material, not a flat color.** Glass panels/badges (fill + blur +
+1. **Per-element stagger, not one fade for the whole card.** Kicker dot →
+   kicker label → hairline rule → headline (word by word) → whatever else,
+   each on its own beat, 60–160ms apart. The eye reads arrival, not appearance.
+2. **A material, not a flat color.** Glass panels/badges (fill + blur +
    hairline + inset top highlight), gold *gradient* text with a shimmer
    sweep on hero numbers — never a solid fill where the brand's glass or gold
    recipe applies.
-4. **Blur-to-focus on text, not just fade.** Headline words enter at
+3. **Blur-to-focus on text, not just fade.** Headline words enter at
    `blur(9px) → blur(0)` alongside the opacity/position tween. This alone is
    most of the perceived "cinematic" quality difference — a plain
    opacity/y fade reads like a keynote slide; adding the blur term reads like
    a title sequence.
+
+### Correction, 2026-09-15: bare emoji-as-icon is not the fix, it's what makes it read as generic
+
+The original version of this file had a fourth ingredient — "a real icon or
+emoji on every card". The user rejected that outright after seeing the first
+Remotion port: bare emoji icons (🧑‍💻, 🚫, 🔔…) read as generic template
+filler, and on Windows the emoji font renders visibly worse than on the
+platform they were designed on, so the problem is worse there, not incidental.
+Piling on ambient film grain as a blanket "premium" texture on every card had
+the same effect — it reads as a template stamp, not craft.
+
+What replaces it:
+
+- **A card can be pure centered typography and nothing else** — kicker +
+  headline, no icon, no watermark. That is a complete, legitimate look on its
+  own, not an unfinished one. Don't force an icon onto a card that doesn't
+  need one.
+- **When a card genuinely needs imagery** (a person, a product, a specific
+  object the line is about), source a real image instead of an emoji:
+  generate one (the `generate_image`/Higgsfield tooling is available for
+  this) for generic/illustrative needs — a laptop, a rocket, an abstract
+  scene — or **ask the user for the actual photo** when the card is about
+  something specific or personal (a real client, their own product's
+  screenshot, their own face). Don't default to asking for every image; use
+  judgment on which is which, and say which choice you made and why when you
+  propose the cutaway.
+- **Push for real creative variety, not the same five templates on repeat.**
+  If the content is about a number climbing, a system with moving parts, or a
+  product's own UI, build the actual thing — an animated line chart with a
+  spring-driven count-up, a mocked dashboard (a Stripe-style revenue panel
+  with the balance ticking up is the example that landed), a UI mockup with
+  its own motion — using genuine Remotion craft (SVG path animation, spring
+  physics, layered composition), not a kicker-plus-headline formula stretched
+  to fit.
+- **Brand tokens (`theme.ts`'s colors and fonts) are raw material, not a
+  template to imitate.** Pull the right color and the right font, then use
+  your own judgment for composition and motion — don't reverse-engineer "what
+  would `brand-pba-code` do" as if matching an existing formula were the goal.
+  The formula is not the brand; the color and type system is.
+
+The five templates in `remotion/src/cutaways/` (`Statement`, `Stat`,
+`ListCard`, `Comparison`, `Diagram`) are still a fine *starting point* for the
+common cases they cover, and their `icon` fields are optional — omit them for
+a pure-text card. **They do not yet render a real image in place of an
+emoji** — `IconBadge`/the hero-icon slot in `Statement.tsx` render whatever
+string they're given as text, so a file path or URL would just print as text,
+not display as a picture. Swapping an emoji field for a generated or supplied
+image is a real code change (an `<Img src={staticFile(...)} />` in place of
+the emoji `<div>`), not a drop-in string replacement — do that work when a
+specific card actually needs it, don't claim the capability exists until it
+does. But treat these five as a starting point, not the ceiling: a video with
+strong numeric or systemic content deserves a bespoke scene built for that
+video, not
+a fifth `stat` card in the same shape as the last four.
 
 ## The five element types and their exact timing
 
@@ -133,42 +181,56 @@ recede it ~0.4s after the other side lands, not before.
 
 ## Where the working code lives
 
-The engine described above is implemented and tested in two files, built for
-the 2026-09 VSL cutaway rebuild:
+The engine described above is implemented as real Remotion components,
+vendored once in the sibling `remotion/` project (see
+`remotion-technical-notes.md` for the project layout) under
+`remotion/src/cutaways/`:
 
-- `edit/animations/vsl2/brand/engine.css` — the CSS: glass panel/badge
-  recipe, kicker, gold-text gradient, ambient background glow + grain.
-- `edit/animations/vsl2/build.mjs` — the JS: five template functions
-  (`tplStatement`, `tplStat`, `tplList`, `tplComparison`, `tplDiagram`) that
-  take a plain content object and return a complete self-contained HTML file
-  wired to the `window.__init/seek/ready` contract the Playwright renderer
-  expects (`edit/animations/renderer.mjs` — pre-existing, unchanged).
+- `theme.ts`/`atmosphere.tsx` (in `remotion/src/architect/`, reused as-is —
+  same brand tokens, no duplication) — glass/gold/color primitives and film
+  grain.
+- `Background.tsx`, `Kicker.tsx`, `Headline.tsx`, `IconBadge.tsx`,
+  `primitives.tsx` (`FadeUp`, `CenteredLabel`, `CountUpGold`) — the shared
+  motion vocabulary (blur-to-focus word stagger, icon pop-in-and-settle, gold
+  count-up + shimmer) each template composes from.
+- `Statement.tsx`, `Stat.tsx`, `ListCard.tsx`, `Comparison.tsx`,
+  `Diagram.tsx` — the five card templates, one component each, driven by
+  `useCurrentFrame()`/`interpolate` instead of a GSAP timeline. `easing.ts`
+  documents the GSAP→Remotion ease mapping (`expo.out` → `Easing.out(Easing.exp)`,
+  etc.) so the timings ported below keep the same feel.
+- `CutawayCard.tsx` — picks the right template from a content-object's `type`.
 
-This is an HTML+GSAP+Playwright pipeline, not Remotion — a deliberate
-exception to "always Remotion for PBA" (see `remotion-technical-notes.md`).
-The reason: this file's whole point is to be handed to someone who is not
-going to set up a React/Remotion project. A self-contained HTML file per card
-plus one CSS file plus one renderer script is copy-paste-able by a
-non-engineer editor or a lightweight tool; a Remotion project is not. If
-you (Claude) are the one building the video end-to-end, either engine
-produces the same on-screen result — use whichever is already scaffolded in
-the project you're in. If you're producing a handoff for someone else to
-build cutaways from, hand them this file plus the two source files, not a
-description of Remotion components they'd have to translate themselves.
+This used to be an HTML+GSAP+Playwright pipeline (a deliberate exception to
+"always Remotion for PBA"), replaced in full on 2026-09-15 after the user
+pointed out the skill's own header said Remotion while the actual working
+engine was GSAP — a real inconsistency, not a misunderstanding. There is no
+non-Remotion fallback anymore; if you're producing a handoff for someone who
+won't set up a Remotion project, hand them this file plus the `cutaways/`
+source, same as any other Remotion work from this skill.
 
-**Rendering a card**: `node render_all.mjs content.json` reads a JSON array
-of card specs (one object per cutaway, `type` selects the template, plus
-`start`/`end` in the *master video's own timeline* — the duration is derived
-as `end - start`, so cards are never a fixed length), builds each card's
-HTML, renders it to a PNG sequence via the existing renderer at the source's
-own fps, and encodes an opaque h264 clip per card whose frame count exactly
-matches the window duration.
+**Per-video wiring**: each video gets its own slot,
+`remotion/src/slots/<video-id>/`, holding a `content.json` (same schema as
+before — one object per cutaway, `type` selects the template, `start`/`end`
+in the *master video's own timeline*, duration derived as `end - start`) and
+a tiny `cutaways.entry.tsx` that loops the array into one `<Composition>` per
+entry (see `remotion/src/slots/demo/` for the reference — the real 18
+cutaways from the shipped VSL this recipe was written for, plus one synthetic
+`diagram` entry since that video didn't need one). Preview live with
+`npx remotion studio src/slots/<video-id>/cutaways.entry.tsx` — see
+"Open Studio in the browser while building" in the technical notes, this is
+not optional.
 
-**Compositing**: `node composite.mjs content.json MAIN.mp4 OUT.mp4 --run`
-builds one ffmpeg command with `-itsoffset <start>` on every overlay input
-(this shifts that stream's PTS to start at the cutaway's own start time on
-the main timeline — without it, `overlay`'s frame-matching has no way to know
-the clip belongs at t=30s instead of t=0s) and chains
+**Rendering a card**: `npx remotion render src/slots/<video-id>/cutaways.entry.tsx <id> out/<id>.mp4`
+per entry (or loop over the content array's ids). Opaque h264 is correct —
+no `--pixel-format`/ProRes flags needed, cutaways aren't alpha overlays.
+
+**Compositing**: `node ../../scripts/composite-cutaways.mjs content.json MAIN.mp4 OUT.mp4 --run`
+(unchanged from the old engine — it only ever consumed `out/<id>.mp4` files
+and never cared how they were rendered). Builds one ffmpeg command with
+`-itsoffset <start>` on every overlay input (this shifts that stream's PTS to
+start at the cutaway's own start time on the main timeline — without it,
+`overlay`'s frame-matching has no way to know the clip belongs at t=30s
+instead of t=0s) and chains
 `overlay=0:0:eof_action=pass:enable='between(t,<start>,<end>)'` across all of
 them, mapping `[vout]` for video and `0:a` (untouched) for audio. This is the
 same opaque-overlay-not-spliced-range structure the main skill file

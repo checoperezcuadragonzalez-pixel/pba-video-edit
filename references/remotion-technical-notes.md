@@ -248,25 +248,32 @@ Remotion project per animation — `npm install` plus the Chrome Headless Shell
 download is ~600MB and a minute-plus each time, and it duplicates the vendored
 brand kit N times for no benefit.
 
-Instead: one shared project with the brand kit vendored once (`tokens.ts`
-ported from `brand-pba-code`'s CSS custom properties, the two brand fonts in
-`public/fonts/`, and `GlassPanel`/`KickerLabel`/`GoldText` primitives). Each
-animation gets its own pair of files:
+Instead: one shared project with the brand kit vendored once. This project is
+`remotion/` (sibling to this skill), and the brand kit is
+`remotion/src/architect/` (`theme.ts`, `atmosphere.tsx`) — the same tokens
+the channel's Intro/LowerThird/SubscribeInsert pack uses, imported directly
+rather than re-ported. The cutaway templates themselves live in
+`remotion/src/cutaways/` (`Statement.tsx`, `Stat.tsx`, `ListCard.tsx`,
+`Comparison.tsx`, `Diagram.tsx`, plus shared primitives) — see
+`cutaway-visual-recipe.md` for what each one does. That module is generic
+across videos; a specific video's *content* lives separately:
 
-- `<Name>.tsx` — the component, the real deliverable.
-- `<Name>.entry.tsx` — a self-contained Remotion entry point (its own
-  `registerRoot` + `<Composition>`) used only to render that one composition:
-  `npx remotion render src/slots/<Name>.entry.tsx <CompId> out/<name>.mp4`
+- `remotion/src/slots/<video-id>/content.json` — the cutaway specs for this
+  video (schema unchanged from the pre-Remotion engine).
+- `remotion/src/slots/<video-id>/cutaways.entry.tsx` — a self-contained
+  Remotion entry point (its own `registerRoot`, one `<Composition>` per
+  `content.json` entry) used only for this video:
+  `npx remotion render src/slots/<video-id>/cutaways.entry.tsx <id> out/<id>.mp4`
+  or `npx remotion studio src/slots/<video-id>/cutaways.entry.tsx` to preview.
+  `remotion/src/slots/demo/` is the reference to copy — the real 18 cutaways
+  from a shipped VSL, plus one synthetic `diagram` entry.
 
 The entry file is what makes this safe for parallel work: nobody touches the
 shared `Root.tsx`/`index.ts`, so parallel writers can't race.
 
-**Version the slot and output directories per video** (`src/slots/v3/`,
-`out_v3/`). Earlier videos' EDLs still reference their own renders, and
-overwriting `out/` breaks the ability to re-render an older video. Note that
-nesting a slot folder one level deeper changes the import depth — `../brand/`
-becomes `../../brand/`. Tell the sub-agent which one to use; it's a common
-first-try failure.
+**Version the slot and output directories per video** (`src/slots/<video-id>/`,
+`out_<video-id>/`). Earlier videos' EDLs still reference their own renders,
+and overwriting `out/` breaks the ability to re-render an older video.
 
 ## Families of cards: one reference, then verbatim copies
 
