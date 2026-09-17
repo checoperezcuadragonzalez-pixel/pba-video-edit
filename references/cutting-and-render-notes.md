@@ -775,6 +775,146 @@ and `ffprobe` the output file's existence and duration.
 Related: `ffmpeg`'s `-stats` output floods a captured log with thousands of
 progress lines. Either drop `-stats` or grep the log rather than tailing it.
 
+## Large editorial specs: DROP BY PHRASE, not by timecode
+
+The DROPS list at the top of this file works fine for 12–18 hand-placed
+cuts. It stops scaling once the user hands over a spec with 20–30 numbered
+points, each describing *what's said*, not *when* — because writing that
+many timecodes by hand is slow and, worse, unauditable: nobody can eyeball a
+`(868.70, 873.10, "...")` triple and confirm it matches the point the user
+actually asked for.
+
+Resolve each point against the transcript by text instead:
+
+```python
+def locate(phrase, near=None):
+    target = norm(phrase).split()
+    hits = [i for i in range(len(NORMED) - len(target) + 1)
+            if NORMED[i:i+len(target)] == target]
+    if not hits:
+        raise SystemExit(f"phrase not found: {phrase!r}")
+    if near is not None:
+        hits.sort(key=lambda i: abs(WORDS[i]["start"] - near))
+    elif len(hits) > 1:
+        raise SystemExit(f"ambiguous phrase {phrase!r} — {len(hits)} hits, pass near=")
+    i = hits[0]
+    return i, i + len(target) - 1
+
+def drop(from_phrase, to_phrase, why, near=None):
+    a, _ = locate(from_phrase, near)
+    _, b = locate(to_phrase, near if near is not None else WORDS[a]["start"])
+    start = WORDS[a]["start"] - PAD
+    if a > 0:
+        start = max(start, (WORDS[a-1]["end"] + WORDS[a]["start"]) / 2)   # silence midpoint
+    end = WORDS[b]["end"] + PAD
+    if b + 1 < len(WORDS):
+        end = min(end, (WORDS[b]["end"] + WORDS[b+1]["start"]) / 2)
+    return (round(start, 3), round(end, 3), why)
+```
+
+`norm()` lowercases and strips accents/punctuation so the phrase you paste
+from the user's spec doesn't have to match Scribe's casing or `¿okey?`
+exactly. The `raise` on zero hits or ambiguity is deliberate — a silently
+wrong match (picking the first of two occurrences) is worse than a build
+that stops and asks for `near=`, because it fails far from where the mistake
+was made.
+
+This composes with the timecode DROPS from the same session — a 30-point
+spec built this way sat directly alongside a `POINT_20_AND_RETAKES` list of
+hardcoded numeric ranges inherited from an earlier pass. That mix is fine,
+but see the adjacency trap below.
+
+**Read the prose reconstruction after every batch, not just at the end.** On
+a 30-point spec applied in two waves, the boundary diagnostic reported 0 bad
+edges on both waves and the defects were still there: an orphaned "Y" left
+dangling before the next surviving sentence (the `from_phrase` didn't reach
+back far enough to include a leading conjunction that belonged to the cut
+material), and a duplicated "¿okey?" (the `to_phrase` stopped one word short
+of the clause it was supposed to close). Both were invisible to the
+word-boundary gate — the cut words themselves were fine, it was the *seam*
+between kept material on either side that read wrong. Fix by widening the
+`from_phrase`/`to_phrase` string, not by adjusting numbers.
+
+### A fixed-timecode range next to a phrase-based drop can silently swallow more than intended
+
+`POINT_20_AND_RETAKES` carried a hardcoded `(868.70, 873.10, "retoma: 'si
+eres un brand' arranque")` from an earlier pass, meant to remove a two-word
+false start. A later phrase-based drop for a different point started at
+873.23 — 130ms after that range's own end. Combined, the two drops were
+contiguous, and between them they ate five words of legitimate content
+(`"brand, AI o sales."`) that neither drop was written to target.
+
+In this specific case the outcome happened to match what the video actually
+needed (that enumeration was getting replaced by an on-screen graphic
+anyway), but it was luck, not design — the fixed range doesn't know the
+phrase-based drop moved next to it, and would not have adjusted if the
+surrounding wording had been different. **When a hardcoded timecode range
+sits within a couple of seconds of a phrase-based drop, print what text
+falls in the gap between them and confirm it's actually meant to go.** Don't
+assume a fixed range is inert just because its own boundaries look fine in
+isolation.
+
+## Re-mapping graphics content across cut versions — record which EDL a `content.json` is pinned to
+
+`content.json`/`kinetic.json` timestamps are output-timeline seconds against
+one specific cut's `base_*.mp4` — not the raw source, and not "whichever cut
+is current." When a later editorial pass produces a new cut (v3 → v4), every
+timestamp in those files is stale, and **nothing in the file says which
+version it was built against.** Re-deriving that by trial and error (testing
+candidate EDLs by reverse-mapping a timestamp and checking whether the raw
+text at that point matches) costs real time and is exactly the kind of thing
+a two-line comment would have prevented.
+
+The remap itself is two mechanical steps once you know the source cut:
+
+```python
+# 1. reverse-map the STALE content.json timestamp through the OLD cut's EDL
+#    (its own kept ranges) to find the underlying raw-source time
+def out_to_raw(old_edl_ranges, out_t):
+    for r in old_edl_ranges:   # ranges carry cumulative _out_start/_out_end
+        if r["_out_start"] - 0.02 <= out_t <= r["_out_end"] + 0.02:
+            clamped = min(max(out_t, r["_out_start"]), r["_out_end"])
+            return r["start"] + (clamped - r["_out_start"])
+    raise ValueError(out_t)
+
+# 2. forward-map that raw time through the NEW cut's EDL to get the new
+#    output-timeline position — this is the same raw_to_out already used
+#    to place cutaways in the first place
+```
+
+Both directions can land inside a gap the *other* cut doesn't have — a raw
+timestamp that was safely inside a kept range on the old cut can fall in a
+newly-dropped region on the new one (or vice versa), which raises instead of
+silently returning a wrong number. When that happens, nudge the anchor to
+the nearest word that *is* still kept (e.g. the payoff word itself rather
+than the start of its sentence) — which is usually a better anchor anyway,
+per the payoff-word rule in the main skill.
+
+**One entry may need to disappear entirely**, not just move — if the
+editorial pass fully cut the block a card or caption was reacting to (a
+"mentira" statement removed by a later corte, its rebuttal caption left with
+nothing to rebut), delete the entry rather than remapping it to wherever its
+words ended up.
+
+**Prevention for next time:** write the source EDL's filename into the JSON
+itself (a top-level `"_cut": "edl_sep15_v4.json"` key, stripped before it's
+consumed by the Remotion entry, or just a comment in the sibling
+`cutaways.entry.tsx`) so a future remap starts from a fact instead of a
+guess.
+
+### A cutaway/graphic can replace narration outright, not just illustrate it
+
+Most cutaways sit alongside spoken content — the presenter says it, the
+graphic draws it. Sometimes the better edit is to **cut the spoken
+enumeration and let the graphic say it instead**: keep the setup line ("un
+arquitecto de negocios se puede especializar en una de estas tres:") but
+drop the three specialty names the moment they'd otherwise be narrated, and
+show them as on-screen badges over the cut. Track that pair — the audio
+drop and the graphic that has to exist to cover for it — as one linked
+decision during propose-strategy, not as an audio edit that happens to
+leave a gap. If the graphic doesn't ship, the audio reads as unfinished
+("...en una de estas tres:" followed immediately by an unrelated sentence).
+
 ## Contact sheets: `tile` needs a frame sequence
 
 `tile=NxM` operates on **one input stream of successive frames**, not on N

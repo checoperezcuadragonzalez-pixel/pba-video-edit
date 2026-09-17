@@ -380,6 +380,16 @@ the videos so far have been 60, 60, 24, 60. When you tell a sub-agent to read a
 sibling slot for house style, tell it explicitly *not* to copy the fps from
 that sibling — it may belong to a different video.
 
+**Grain needs `screen` blend, not `overlay`, on the black stage** — `overlay`
+mathematically converges to invisible on near-black, and it looks correct in
+code and in Studio's small preview panel while shipping zero visible texture.
+**Hold motion should be a slow sine wave (scale + vertical sway), not a
+one-directional drift** — a drift always moves the same way and walks the
+frame off its start on anything longer than a few seconds. Both verified only
+by reading a real rendered still (`npx remotion still`) at full resolution,
+never the Studio panel. Full details, including the exact blend-mode math and
+the wave expression, in the technical notes.
+
 Everything else about wiring Remotion into the pipeline is in the technical
 notes — including **opening Remotion Studio in the browser while building**
 each slot, not just handing back rendered stills. That's a correction from a
@@ -408,6 +418,11 @@ uses b-roll than to a slide deck with a narrator.
 
 So: many short cutaways beat few long ones, even if the "few long ones" target
 the objectively most technical parts.
+
+**A cutaway can replace narration outright, not just illustrate it** — cut
+the spoken enumeration, keep the setup line, show the list as an on-screen
+graphic instead. Track the audio drop and the graphic that covers for it as
+one linked decision, not two unrelated edits — see the cutting notes.
 
 **Calibration from five shipped videos:** 18 cutaways each, landing at
 9–13.5% of total runtime, which works out to roughly **one per minute**. The

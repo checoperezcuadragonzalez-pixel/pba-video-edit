@@ -241,6 +241,72 @@ Also universal: hold the final composed frame completely still for the last
 ~1s, and **do not fade to black at the end** — the hard cut back to camera
 does that work, and a fade just reads as a dip.
 
+## Grain: `mixBlendMode: "overlay"` is invisible on a near-black stage
+
+A film-grain layer (SVG `feTurbulence`, desaturated, low opacity) shipped for
+several sessions with **zero visible effect**, and it went unnoticed because
+nobody looked at a full-resolution still — Remotion Studio's embedded preview
+canvas is scaled down enough to hide texture this subtle, and the code
+*looked* correct.
+
+The cause is the blend math. `overlay` darkens on a base below 0.5 luma and
+lightens above it, scaled by *how far* the base already is from mid-gray.
+On the stage's `#050505`/`#0A0A0A` black, the base is close enough to 0 that
+`overlay` converges to black regardless of what the noise layer contains —
+the grain is mathematically present and visually absent at the same time.
+
+Fix: use **`mixBlendMode: "screen"`** instead. Screen's formula on a black
+base reduces to `result = blend`, so the noise shows at exactly its own
+opacity — no darkening term to cancel it out.
+
+```jsx
+<AbsoluteFill style={{ opacity, mixBlendMode: "screen", pointerEvents: "none" }}>
+```
+
+`overlay` is still the right choice over a *lit* background (live camera
+footage, a bright photo) where it's meant to modulate existing contrast
+rather than add texture to near-black. The trap is specifically: **grain
+sitting on top of a brand-black stage needs `screen`, not `overlay`.**
+
+**Verify with a real rendered still, not the Studio panel.** `npx remotion
+still entry.tsx CompId out.png --frame=N` and reading the PNG at native
+resolution is what actually caught both the bug and the fix — the Studio
+canvas at its default panel size was too small to show the difference either
+way, even when scrubbed to a frame that should have made it obvious.
+
+## Continuous hold motion: a slow sine wave beats a linear drift
+
+The scene wrapper that keeps a held card from reading as a frozen still
+originally used a one-directional drift: `scale = 1 + 0.03 * (frame /
+durationInFrames)`. That reads as smooth for a 5s card, but it has two real
+problems — it always moves the same way (in, never out, so a family of
+cards all "zoom forward" identically instead of feeling alive independently),
+and on anything longer than a few seconds it visibly walks the frame off its
+starting composition.
+
+Replaced with a continuous sine oscillation on both scale and vertical
+position, phase-offset a quarter cycle apart so the sway peaks as the
+breathing crosses its resting scale:
+
+```jsx
+const WAVE_PERIOD_SEC = 4.2;
+const wavePhase = ((frame / fps) / WAVE_PERIOD_SEC) * Math.PI * 2;
+const waveScale = 1 + 0.015 * Math.sin(wavePhase);
+const waveY = 8 * Math.sin(wavePhase + Math.PI / 2);
+```
+
+`0.015` (±1.5%) and `8px` are subtle enough not to fight the punch-in-and-
+settle open (still a separate, one-shot tween at the start of the card); the
+wave only takes over once the open eases out. A period of 3.5–5s reads as
+"breathing," not as an oscillation the eye can clock — much shorter and it
+starts to look like judder, much longer and it's indistinguishable from the
+old linear drift over a 5s card.
+
+Confirm it with two or three stills spaced across the hold (not the start and
+end alone — those can land near the same phase by coincidence) and check the
+whole composition — title, number, image block — has visibly shifted between
+them.
+
 ## Structuring a shared Remotion project for parallel builds
 
 When several cutaways are being built at once, don't scaffold an isolated
