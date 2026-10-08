@@ -567,6 +567,50 @@ limiter over it (video stream-copied, so it's quick) and re-measure. Sources
 have arrived both clipping (+2.16 dBTP) and 16 dB too quiet, so this step
 always earns its keep. Exact commands are in the cutting-and-render notes.
 
+## Music: measure it against the voice, never against a LUFS target
+
+Up to 2026-10-06 every video shipped with no music. The first one that asked for
+it ("ponle banda sonora dopaminérgica") surfaced a trap worth writing down,
+because the wrong version *measures* correct and is inaudible.
+
+The bed was generated as five cues following the video's energy curve, loudnormed
+to −30 LUFS, and sidechain-ducked against the voice at `threshold=0.028:ratio=7`.
+Every number defensible. Measured on a 40 s stretch that is 93% speech:
+
+```
+cama sin agachar     : -35.3 dBFS
+cama MIENTRAS habla  : -55.5 dBFS   (cede 20.0 dB)
+voz                  : -15.1 dBFS
+separacion voz-musica: 40.5 dB      <- inaudible
+```
+
+**A −30 LUFS target is not a mix decision.** The number that matters is the
+separation from the voice, and the shape that works is roughly **20 dB down
+while he talks, lifting 6–7 dB in the pauses** — present enough to carry the
+cut, gone the instant he speaks. Sweep it; don't guess:
+
+| bed gain | ratio | thr | hablando | en pausa | separación | cede |
+|---|---|---|---|---|---|---|
+| +5 dB | 2.0 | 0.05 | −39.7 | −32.7 | 24.7 | 7.0 |
+| +5 dB | 3.0 | 0.05 | −42.8 | −34.2 | 27.7 | 8.6 |
+| +6 dB | 2.5 | 0.08 | −38.1 | −30.4 | 23.1 | 7.7 |
+| **+7 dB** | **2.0** | **0.10** | **−34.7** | **−28.1** | **19.7** | **6.6** |
+| +8 dB | 2.5 | 0.12 | −34.0 | −26.9 | 19.0 | 7.2 |
+
+Shipped: `volume=7dB` into
+`sidechaincompress=threshold=0.10:ratio=2.0:attack=20:release=420:makeup=1`.
+`ratio=7` is a ducking ratio for radio imaging, not for a bed under a talking
+head — at that ratio the music stops existing.
+
+Cue the bed to the cut, not to the clock: the change points go on segment seams,
+never mid-sentence. Five cues over 11 minutes was the right granularity — tense
+hook, near-silence under the personal story, forward motion under the
+explanation, full energy through the chapters, resolve under the CTA.
+
+**A soft transition swish on each cutaway entry earns its place**, at −19 dB and
+starting **0.12 s before the cut**. Landing it exactly on the cut reads as an
+echo of the cut; starting it slightly early makes the graphic feel announced.
+
 ## Inspect every graphic before you composite
 
 The composite is the expensive step, and **you cannot shorten the loop by

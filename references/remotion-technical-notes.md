@@ -437,3 +437,67 @@ Each brief must be self-contained. Include, every time:
 
 Remotion muxes a silent AAC track into every h264 render. It's harmless — the
 overlay path only maps `[N:v]` — so there's no need to strip it.
+
+## Three Remotion/ffmpeg traps from the 2026-10-06 build
+
+**Composition ids reject `_`.** `Composition id can only contain a-z, A-Z, 0-9,
+CJK characters and -.` Worse, the error names the *first* offending id for every
+subsequent render in the batch, so eighteen failures all read
+`You passed problema_av` and it looks like one broken entry rather than a naming
+rule. Keep the underscore ids in `content.json` (they are also ffmpeg-side file
+names) and derive the composition id:
+
+```ts
+export const compId = (id: string) => id.replace(/_/g, "-");
+```
+
+**`--pixel-format yuva444p10le` needs `--image-format png`.** Without it:
+`Pixel format was set to 'yuva444p10le' but the image format is not PNG.`
+The full working line for an alpha overlay:
+
+```bash
+npx remotion render <entry> <id> out.mov \
+  --codec prores --prores-profile 4444 --image-format png --pixel-format yuva444p10le
+```
+
+**Testing an alpha overlay over footage: `-itsoffset` is for the full render,
+`-ss` is for the spot check.** Composing a single frame with `-ss T` on the base
+*and* `-itsoffset (T - start)` on the overlay silently produces a frame with no
+overlay at all — `-ss` already reset the base's PTS to 0, so the positive offset
+pushes the overlay into the future. The check then "passes" by showing clean
+footage, which is exactly what a broken alpha pipeline also looks like. For a
+spot check, seek both inputs:
+
+```bash
+ffmpeg -ss <T> -i base.mp4 -ss <T - start> -i ov.mov \
+  -filter_complex "[0:v][1:v]overlay=0:0:format=auto" -frames:v 1 out.png
+```
+
+## A strike-through must be sized by the text, not by a constant
+
+A "cross these off one by one" card drew each strike as a fixed-width div
+(`width: 880 * progress`). Every row got the same 880 px line regardless of how
+long its text was, so the short rows had the line running 300 px past the end
+and the four rows read as ragged. Put the rule inside an `inline-block` that
+wraps the text and size it in percent:
+
+```tsx
+<div style={{ position: "relative", display: "inline-block" }}>
+  <span style={{ whiteSpace: "nowrap" }}>{text}</span>
+  <div style={{ position: "absolute", left: -6, top: "52%",
+                width: `calc(${p * 100}% + ${p * 12}px)`, height: 3 }} />
+</div>
+```
+
+Related: **centring each row independently leaves a zigzag left edge** when the
+rows are different lengths. Wrap the whole list in one `inline-flex` column and
+centre *that* — the column auto-sizes to the longest row and every row shares a
+left edge.
+
+## Struck-out / de-emphasised text has a floor of about 0.6 opacity
+
+The resting opacity for a "this item is cancelled" row was set to 0.48 and the
+whole card came back as a grey smear in the contact sheet — it read as a dip at
+1×, same failure mode as the muted-side-enters-muted case above. 0.62 keeps the
+row legible while still reading as struck. The gold rule over it does the
+semantic work; the dimming only has to support it.

@@ -929,3 +929,92 @@ ffmpeg -y -framerate 1 -i seq/f%03d.png \
 
 Also: name the temp stills by index, not by timestamp — two sample times that
 round to the same integer will collide and overwrite each other.
+
+## The −45 dBFS silence floor is not universal — derive it per clip
+
+The valley finder above thresholds at −45 dBFS because "these recordings floor
+at −60/−90". That held for OBS captures. It does **not** hold for camera files,
+and when it breaks it breaks silently in the most useless way: it reports
+**0 ms of silence on every boundary**, so the gate that is supposed to
+adjudicate cuts tells you nothing at all.
+
+On the 2026-10-06 shoot (eight Sony camera files, same room, same session,
+recorded over 22 minutes) the measured floor moved **25 dB between takes**:
+
+| clip | p5 of the 10 ms envelope | median |
+|---|---|---|
+| C1433 | −66.7 dBFS | −60.8 |
+| C1436 | −38.2 | −13.7 |
+| C1438 | −37.5 | −13.7 |
+| C1440 | −40.2 | −14.2 |
+
+C1433 is 73% leading silence, so its percentiles describe room tone; the others
+have almost no true silence and their "pauses" sit at −38/−41 with breath and
+room noise. One fixed number cannot serve both.
+
+Derive it from the clip's own envelope instead:
+
+```python
+lo, hi = np.percentile(db, 5), np.percentile(db, 90)
+thr = (lo + hi) / 2 - 3.0        # a medio camino entre piso y habla
+```
+
+That put the threshold at −41.7 for C1433 and −27.1 for C1439, and found the
+real valleys in both. Print the per-clip threshold in the gate's output — when
+a boundary later looks wrong, the first question is whether the threshold was
+sane for that file.
+
+## The snapper corrects safety, not editing — bound it
+
+Snapping a boundary to the **centre** of its valley is right for a cut sitting
+in a wide gap and wrong everywhere else, because the centre of a 3-second pause
+is 1.5 seconds of dead air you had already decided to remove. Two failures, both
+from the same session:
+
+1. **Centre-snapping flattened every squeeze.** A pause from 304.58 to 305.88
+   that the EDL deliberately cut to ~0.45 s came back with *both* its edges
+   snapped to 305.03 — the squeeze collapsed to zero and the pause returned at
+   full length. Same on three other pauses.
+
+2. **An unbounded search window ate the edit.** For an `ini` boundary at the
+   *start* of a clip there is no previous word, so the window opened all the way
+   to t=0 and the largest valley in range was the silence before the presenter
+   started talking. The hook's in-point moved **26.30 → 23.14** and injected
+   **3.2 s of dead air at the top of the video**; C1437 lost 1.08 s and C1438
+   0.45 s the same way. It survived to a rendered `base.mp4` and only surfaced
+   in the transcript of the cut, which showed the first word at `[3.26]`.
+
+So: **minimal movement, hard-capped.**
+
+```python
+MAXMOVE = 0.45
+if quiet_left >= 0.050 and quiet_right >= 0.050:
+    return t                     # ya cae en silencio: no se toca
+cand = min(max(t, valley_a + 0.055), valley_b - 0.055)   # lo justo para entrar
+if abs(cand - t) > MAXMOVE: skip this valley
+```
+
+With that, 44 of 48 boundaries needed no correction or moved under 200 ms, and
+the four that found no valley were all deliberate tight cuts into a hard clip
+change, where the 30 ms fade covers them.
+
+## When the footage is N camera files, express the cut as KEEPS
+
+The DROPS-not-KEEPS rule at the top of this file assumes one continuous master.
+When the source is a camera roll — eight `C14xx.MP4` files that each start and
+stop mid-sentence — DROPS stops being the readable form: it becomes eight
+separate drop lists against eight separate durations, and the thing you actually
+need to see (what order the pieces go in) is nowhere on the page.
+
+Declare `KEEPS = [(clip, in, out, note), ...]` in narrative order instead. The
+note field carries its weight here, because the reader's first question is no
+longer "what came out" but "what is this piece and why is it here".
+
+Two things that come with camera rolls and not with OBS files:
+
+- **Whole takes repeat, not just lines.** C1434 and C1435 were the same
+  three-minute story told twice. That is a file-level choice made by reading two
+  blocks of the packed transcript side by side, not a boundary question.
+- **Almost every file ends mid-word** — the camera was stopped before the
+  sentence finished. Expect to trim a truncated tail off every single clip, and
+  expect the next clip to restart the thought rather than continue it.
