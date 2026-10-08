@@ -568,6 +568,42 @@ graded render and in the ungraded one. Black corner came back `16.2` in both and
 the headline area `35.9,31.0,22.2` vs `36.0,31.9,22.3` — encoding noise, not a
 shift.
 
+**Balance the footage BEFORE the LUT, or it compounds the room's cast.** This
+is the correction that actually shipped. The first graded pass came back from
+the user as *"se ve demasiado cálido, güey… se ve de la chingada"* — and the
+instinct (dial the LUT back) is wrong, because a LUT assumes a neutrally
+balanced input. This room is lit with very warm practicals, so the LUT was
+stacking warmth on warmth.
+
+Find a real neutral in frame and measure it. The presenter's MacBook lid is
+aluminium and should read neutral grey; the window frame is a second reference
+that confirms whatever the first one says:
+
+| | laptop R/B | marco R/B |
+|---|---|---|
+| bruto | **1.34** | 1.36 |
+| + LUT, sin balance | **1.56** | 1.48 |
+| + balance al 90%, + LUT | **0.95** | — |
+
+Two references agreeing is what separates "the room has a cast" from "that
+object happens to be warm". Neutralise the reference with a channel gain ahead
+of the LUT:
+
+```
+format=gbrp16le,colorchannelmixer=rr=0.8983:gg=0.9720:bb=1.1700,lut3d=...,format=yuv420p
+```
+
+Derive the gains from the measurement (`target = mean(R,G,B); gain_c = target/c`)
+and then **apply about 90% of them, not 100%**. Full correction starts draining
+the wood panelling behind him, which is genuinely warm and should stay that way;
+90% lands the neutral reference a hair cool — the right side to err on when the
+complaint was warmth — while leaving real warm objects warm.
+
+**Check whether the LUT still earns its place afterwards.** Worth asking once
+the cast is gone, because it is a cheap test and the honest answer might be no.
+Here it was yes: balanced-without-LUT came out flat and washed, blacks milky.
+What the LUT contributes is contrast and shadow depth; the warmth was the room.
+
 **Partial strength is not available — it desaturates.** The instinct with a
 strong LUT is to blend it at 70-80%. Measured mean saturation over three frames:
 
