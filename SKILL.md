@@ -548,8 +548,61 @@ notes.
 
 ## Grade and zoom
 
-**Grade: `none`.** Every video has shipped ungraded and the user has never
-asked for one.
+**Grade: was `none` until 2026-10-07; now ask.** Five videos shipped ungraded
+and the default was "don't". Then the user handed over a `.cube` and said *"tú
+ve cómo se queda mejor"*. So: no longer assume, and when a LUT does arrive,
+three things decided the result and none of them are obvious.
+
+**Apply it to `[0:v]` only, before any overlay goes on.** The brand's stage is
+`#050505` and this LUT maps black to `0.045, 0.062, 0.071` — run it over the
+finished composite and every cutaway's black lifts to a milky grey and the gold
+shifts. Graded camera first, graphics on top:
+
+```
+[0:v]format=gbrp16le,lut3d=file='<cube>':interp=tetrahedral,format=yuv420p[cam];
+[cam][1:v]overlay=...   # cutaways y capas alfa, intactos
+```
+
+Then *prove* the graphics are untouched: probe the same pixel block in the
+graded render and in the ungraded one. Black corner came back `16.2` in both and
+the headline area `35.9,31.0,22.2` vs `36.0,31.9,22.3` — encoding noise, not a
+shift.
+
+**Partial strength is not available — it desaturates.** The instinct with a
+strong LUT is to blend it at 70-80%. Measured mean saturation over three frames:
+
+| mix | saturación |
+|---|---|
+| 0% (original) | 0.259 |
+| 50% | 0.232 |
+| 75% | **0.210** |
+| 100% | 0.245 |
+
+75% is the *least* saturated of the four, because blending the original against
+hue-shifted graded pixels in RGB cancels chroma. It reads as muddy, not as "a
+softer version of the look". It is 100% or nothing — so the real question is
+whether the LUT is right, not how much of it to use.
+
+**It does not need a re-extraction.** The note in the cutting reference says
+grade is baked at extraction; that is true for *frame-indexed* filters like
+`zoompan`, which change every segment's duration and invalidate the drift table.
+A `lut3d` is a pure per-pixel transform, so it can live in the composite pass.
+Measured on a dark flat region, grading `base.mp4` (already CRF 20) against
+grading a fresh 4K decode:
+
+| | niveles distintos | ruido | blockiness |
+|---|---|---|---|
+| desde `base.mp4` | 101 | 29.22 | **0.970** |
+| desde el 4K | 102 | 29.29 | 1.027 |
+
+One tonal level of difference and *less* block structure from the compressed
+source. The re-extraction buys nothing and costs ~20 minutes. Use `gbrp16le`
+around `lut3d` so a 33³ LUT's interpolation isn't quantised twice.
+
+**And don't re-run loudnorm.** Only the picture changed, so render the graded
+composite with `-an` and remux the already-measured audio from the previous
+delivery (`-map 0:v -map 1:a -c copy`). Re-measuring would hand you a second AAC
+generation on a voice that is bit-identical.
 
 **Zoom: none.** A per-cut ease-out push-in was built and tested at 5% and at
 130%, and the user rejected it. Do not add it back on your own initiative. If
