@@ -491,6 +491,22 @@ words in the **7 seconds after**. If the graphic's own copy shows up in the
 `reveal_duration` earlier so the landing frame coincides with the payoff word).
 It is easy to skip when you are placing eighteen windows at once. Don't.
 
+### The presenter has to appear right after the cold open — correction, 2026-10-13
+
+One video opened with guest clips (12 s), then a 4.2 s silent title card on black
+("Tiene 18 años…"), then a full-frame ID cutaway covering the presenter exactly
+as he said "Él es Adam. Tiene 18 años". The user: *"entra la animación y yo me
+tardo en entrar… hay mucha animación al principio"*. Eight seconds of graphics
+before his face, and the title pre-empted his own line.
+
+So: **after a cold open, cut straight to the presenter.** No silent title card
+(if the script's cold-open VO was never recorded, drop it rather than replace it
+with text), and no full-frame cutaway in his first ~10 s on camera. Identity
+cards for a guest go as a **floating alpha card** beside him while he introduces
+them. Removing a GAP segment shifts the whole timeline by its exact frame count;
+every overlay/cutaway time can be shifted by `frames/fps` without re-rendering
+anything except layers that embed the base footage.
+
 ## Camera overlays
 
 For stretches that stay on camera, text/icon/lower-third overlays follow the
@@ -604,7 +620,12 @@ the cast is gone, because it is a cheap test and the honest answer might be no.
 Here it was yes: balanced-without-LUT came out flat and washed, blacks milky.
 What the LUT contributes is contrast and shadow depth; the warmth was the room.
 
-**Partial strength is not available — it desaturates.** The instinct with a
+**Partial strength desaturates — unless you compensate.** (2026-10-13: the user
+asked for the LUT *"muy ligero para que no se vea tan cálido"*. Blended at 30% over
+the gentle grade, the aluminium reference went R/B 1.25 → 1.04 and mean saturation
+0.39 → 0.29; an `eq=saturation=1.1` after the blend brought it back to 0.40 and the
+result shipped. So a light blend is fine as long as saturation is measured and
+restored after it. The table below is the uncompensated case.) The instinct with a
 strong LUT is to blend it at 70-80%. Measured mean saturation over three frames:
 
 | mix | saturación |
@@ -655,6 +676,14 @@ twice at **+0.07 dBTP**, i.e. clipping. If TP comes out above about −0.2, run 
 limiter over it (video stream-copied, so it's quick) and re-measure. Sources
 have arrived both clipping (+2.16 dBTP) and 16 dB too quiet, so this step
 always earns its keep. Exact commands are in the cutting-and-render notes.
+
+## Music: the user's own library comes first
+
+When the user hands over music, it lives in **`Downloads/musica`** (Epidemic Sound
+tracks). From 2026-10-13 the user wants music **through the whole video**, not
+only from a late section: assign tracks by measured energy (level per 15 s, tempo,
+brightness), change on chapter seams with ~3 s crossfades, start the opening on a
+track that begins near-silent. Generated cues are the fallback, not the default.
 
 ## Music: measure it against the voice, never against a LUFS target
 
