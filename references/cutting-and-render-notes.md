@@ -1018,3 +1018,66 @@ Two things that come with camera rolls and not with OBS files:
 - **Almost every file ends mid-word** — the camera was stopped before the
   sentence finished. Expect to trim a truncated tail off every single clip, and
   expect the next clip to restart the thought rather than continue it.
+
+## When the good audio comes from a separate recorder
+
+On the 2026-10-13 shoot the camera files carried only the room mic; the voice
+worth shipping was in an OBS `.mov` (a teleprompter capture whose picture is
+useless). Three things made that work, none of them obvious:
+
+1. **Sync by cross-correlation, then make the external audio the master
+   clock.** Decimate both to 2 kHz, one FFT correlation over the whole file:
+   the peak was 300-400x the noise floor, unambiguous. Re-measure the offset
+   in 4-second windows every ~90 s to check clock drift before trusting a
+   single number — here it was 2 ms over ten minutes, i.e. none. Then express
+   the whole EDL in the recorder's time and map each range back to
+   `(camera_file, camera_time)`. Two camera files that turned out to be one
+   continuous take split by the camera are just two offsets.
+2. **Process the voice once, on the whole file, before cutting** — not per
+   segment. Per-segment `afftdn` and compressors restart their state at every
+   cut. And **measure the chain's latency**: `afftdn` delayed the voice by
+   **28.7 ms**, a constant lip-sync error until the slicer added it back.
+   Correlate processed vs raw in two places; it is one line to measure.
+3. **Build the audio track as sample-exact PCM slices**, not as AAC per
+   segment. Quantise every range to whole frames first (`n = round(dur*fps)`,
+   moving the edge that lands in silence), so video segments and audio slices
+   have identical lengths by construction; 12 ms fades only on non-contiguous
+   joins. Result: `base_video` frames == EDL frames, audio length == video
+   length to the sample, and a 74-join pop check came back clean.
+
+## Interview recordings switch speaker view behind your back
+
+A call recording (Zoom-like, "active speaker" layout) showed the
+**interviewer's** camera in ~7 of 40 sub-ranges where the guest was talking —
+a backchannel "okey" is enough to flip it. Nothing in the transcript reveals
+it; the first rendered still of a "guest" clip had the host's face under the
+guest's name tag.
+
+Classify every quarter-second by something cheap that separates the two
+backgrounds (here mean R−B warmth: guest >35, host ~5), pad the bad runs by
+0.3 s, and replace them with the nearest good frame via `freezeframes`.
+**`freezeframes` takes two inputs** — `split[a][b];[a][b]freezeframes=first=:last=:replace=` —
+a single-input filter string fails silently with a 0-byte file.
+
+## Music levels are relative to THIS base — sweep them every video
+
+The previous video's bed settings (`volume=7dB`, `threshold=0.10`) put the music
+**at the same level as the voice** on this one, because this base sat ~8 dB
+lower before loudnorm. Swept again on 30 s stretches: `volume=-3dB`,
+`threshold=0.02`, `ratio=6` gave ~18-19 dB under the voice while talking and
++7-8 dB in pauses. Never copy the numbers; copy the sweep.
+
+## The LUT is not portable between shoots
+
+The same `.cube` that shipped on 2026-10-07 turned this footage teal and
+crushed (lid R/B 0.54 after LUT). Different day, different picture profile.
+A gentle custom grade (partial WB gains, mild S-curve, sat 1.12) won. Test the
+LUT on a still from every shoot before baking it.
+
+## Back-to-back cutaways: close gaps under ~0.6 s
+
+Two cutaways 0.21 s apart flashed five frames of the layer underneath — reads
+as a glitch, not a cut. Composite rule: when the next opaque layer starts
+within 0.6 s, the first one holds its last frame (`eof_action=repeat`, enable
+extended to the next start). Check with a gap list before the composite, not
+on the boundary sheet after.

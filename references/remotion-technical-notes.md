@@ -501,3 +501,33 @@ whole card came back as a grey smear in the contact sheet — it read as a dip a
 1×, same failure mode as the muted-side-enters-muted case above. 0.62 keeps the
 row legible while still reading as struck. The gold rule over it does the
 semantic work; the dimming only has to support it.
+
+## Split-screen with a scrolling HTML page (camera left, page right)
+
+Asked for on 2026-10-13: put the presenter's HTML explainer next to him and
+scroll it "as if he were moving it" while he talks. What worked:
+
+- **The camera is not a separate layer.** The split composition reads
+  `base.mp4` itself with `OffthreadVideo trimBefore={round(start*fps)}`, so a
+  "morph" from full-frame camera to a rounded card is continuous with what the
+  viewer was already seeing. Hard-link `base.mp4` into `public/` (os.link) —
+  no 600 MB copy, and ffmpeg rewriting the base in place keeps the link.
+- **The page is a 2x full-page screenshot** from the headless Chrome Remotion
+  already ships (`--screenshot --window-size=780,<H> --force-device-scale-factor=2`),
+  cut into 4000 px tiles (one 22,000 px image is past what Chrome composites
+  reliably). Only tiles intersecting the viewport are mounted.
+- **Block positions come from the page, not from eyeballing**: inject a script
+  that dumps `getBoundingClientRect()+scrollY` of every section/figure into a
+  `<pre>`, run `--dump-dom`, parse. Scroll keyframes are then
+  `(output_time_of_the_spoken_word, block_y)`; ease with
+  `bezier(0.3,0.05,0.15,1)`, 0.7-1.5 s by distance. A cursor that travels to
+  the block and a soft highlight after landing sell the "he's moving it".
+- **Mono labels inside the page break too** (Perezcuadra accented caps): strip
+  accents in those elements with an injected script before the screenshot.
+- **Long enumerations become panel takeovers**, not full-frame cutaways: the
+  graphic builds inside the right panel for 12-18 s while the face stays on
+  the left. That is how a 3-traffic-light or 4-step recap gets its time
+  without breaking the "never lose the face for long" rule.
+
+Render cost: ~745 s of split at 1080p23.976 took ~45 min while five other
+renders shared the machine.
