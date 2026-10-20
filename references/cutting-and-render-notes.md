@@ -1082,6 +1082,16 @@ within 0.6 s, the first one holds its last frame (`eof_action=repeat`, enable
 extended to the next start). Check with a gap list before the composite, not
 on the boundary sheet after.
 
+## When the explainer was screen-recorded in OBS: use it as recorded (correction, 2026-10-19)
+
+If the OBS file already shows the explainer full-screen with the presenter's camera in a PIP, that
+footage **is** the design. The first pass re-captured the HTML into a branded split (camera card,
+chapter kicker, AA background) and colour-corrected the PIP; the user rejected it: *"ya no lo tenías que
+poner en un HTML… lo sobresaturaste y se ve de mala calidad. Simplemente déjalo tal cual está"*. The split
+shrank the explainer and the PIP grade read as oversaturated. Ship the OBS frames untouched (no grade, no
+crop) and keep only the short cutaways and real clips on top. The re-captured split is for recordings that
+do NOT contain the screen. The notes below stay as technique, not as the default.
+
 ## When the camera only exists as the OBS picture-in-picture (2026-10-19)
 
 A walkthrough video arrived as two OBS files plus two Sony clips — and the Sony had only
