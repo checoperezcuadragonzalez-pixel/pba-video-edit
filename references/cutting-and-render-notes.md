@@ -1081,3 +1081,37 @@ as a glitch, not a cut. Composite rule: when the next opaque layer starts
 within 0.6 s, the first one holds its last frame (`eof_action=repeat`, enable
 extended to the next start). Check with a gap list before the composite, not
 on the boundary sheet after.
+
+## When the camera only exists as the OBS picture-in-picture (2026-10-19)
+
+A walkthrough video arrived as two OBS files plus two Sony clips — and the Sony had only
+recorded the intro and the **last 50 s** of the 15-minute screen-share. Find this out by
+cross-correlating every camera clip against every OBS audio track *before* planning: the
+coarse envelope match put the short clip at OBS t = 866 s, i.e. the outro, not the start.
+
+For the stretch with no Sony footage the only camera is the OBS PIP (~360×400 px):
+
+- **Crop inside the rounded PIP** and draw your own rounded card; upscaled ~1.5× with
+  lanczos + a light unsharp it holds up at ~550 px wide. Don't try to go full-frame with it.
+- **The PIP is far warmer than the Sony** (R/B ≈ 3.4 on the face after the house grade, vs
+  ≈ 1.7 on the Sony). Pre-correct with `colorchannelmixer` (blue gain ~1.9, green ~1.25)
+  plus `hqdn3d` *before* the grade chain, measured against a cheek patch on the Sony.
+- **Re-capture the page instead of using the screen recording.** Track the presenter's real
+  scroll by template-matching each OBS frame (4 fps, viewport crop, scaled to CSS 1×) against
+  the full-page capture — `cv2.matchTemplate(TM_CCOEFF_NORMED)` gave a clean curve
+  (median 0.68 score, 7 bad samples in 3,380). Sweep the OBS→CSS scale first on one frame;
+  the score peaks sharply (0.795 here). Median-filter, then a 0.3 s Gaussian, and the
+  re-rendered panel scrolls exactly when he did.
+- **Composite the split in numpy, not Remotion, and never per-pixel in float over the
+  full frame**: 1.3 fps. Pasting interiors as uint8 and blending only the rounded-edge bands
+  ran ~25 fps.
+
+## Inserting other creators' clips with their own audio
+
+When the presenter names people, splice a 4–10 s clip of *that person saying it* into the
+cut (an `INSERT` entry in the KEEPS list): the clip's audio goes into `voice.wav`, the clip's
+picture is an opaque Remotion cutaway built from the segment list (multi-part when you skip
+a repetition inside the clip). Loudnorm the clip to ~-19 LUFS and then measure it against the
+voice — they came out ~6 dB hot and needed −5.5 dB. Transcribe each clip with Scribe so the
+subtitles in the player card use real word timings. Insert at sentence ends ("Y él mismo lo
+cuenta." → his clip → "El canal no le dejaba dinero…"), never mid-phrase.
